@@ -43,30 +43,26 @@ class WallJumperGame : ApplicationAdapter() {
     private val anchorRatio = 0.42f
     private val anchorY get() = H * anchorRatio
 
-    // Obstáculos (si los usas)
+    // Obstáculos
     private val obstacles = mutableListOf<Rectangle>()
 
-    // Suelo inicial (desaparece al subir)
+    // Suelo inicial
     private val floorRect = Rectangle(0f, 0f, W, 18f)
     private var floorVisible = true
     private val floorTop get() = floorRect.y + floorRect.height
 
-    // Dirección del primer salto (debe concordar con primera pared)
+    // Dirección del primer salto
     private var initialJumpToRight = true
 
     override fun create() {
         cam = OrthographicCamera(W, H).apply { setToOrtho(false, W, H) }
         shapes = ShapeRenderer()
         batch = SpriteBatch()
-        font = BitmapFont().apply {
-            data.setScale(2f)
-            color = Color.WHITE
-        }
+        font = BitmapFont().apply { data.setScale(2f); color = Color.WHITE }
 
         initRun()
     }
 
-    /** Configura/arranca una partida nueva. */
     private fun initRun() {
         gameOver = false
         started = false
@@ -75,10 +71,8 @@ class WallJumperGame : ApplicationAdapter() {
         floorRect.set(0f, 0f, W, 18f)
         floorVisible = true
 
-        // Jugador en suelo (centrado)
         player = Player(W * 0.5f, floorTop)
 
-        // Walls
         wallManager = WallManager(
             worldW = W,
             worldH = H,
@@ -87,7 +81,7 @@ class WallJumperGame : ApplicationAdapter() {
             wallWidth = 10f,
             segmentHeight = 140f
         ).apply {
-            // si quieres paredes más juntas:
+            // tuning opcional de paredes cercanas:
             // riseScale = 0.40f; minRise = 36f; firstAlignBias = 0.70f
         }
 
@@ -106,21 +100,25 @@ class WallJumperGame : ApplicationAdapter() {
     override fun render() {
         val dt = min(1f / 60f, Gdx.graphics.deltaTime)
 
-        // ===== 1) Input al INICIO =====
-        val anyPress = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) ||
+        // ===== 1) Input =====
+        val justPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) ||
             Gdx.input.justTouched() ||
             (Gdx.input.isTouched && !pressedLastFrame)
+        val isHeld = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isTouched
 
         // Si estamos en GAME OVER, pulsar reinicia
-        if (gameOver && anyPress) {
+        if (gameOver && justPressed) {
             initRun()
             drawFrame()
             pressedLastFrame = Gdx.input.isTouched
             return
         }
 
-        // En juego normal, registrar inicio al primer input
-        if (anyPress && !player.isDead()) {
+        // Pasar hold al Player SIEMPRE (para sustain/jump-cut)
+        player.setJumpHeld(isHeld)
+
+        // Registrar inicio al primer input
+        if (justPressed && !player.isDead()) {
             if (!started) started = true
         }
 
@@ -137,15 +135,13 @@ class WallJumperGame : ApplicationAdapter() {
                 }
             }
 
-            // Intentar pegarse a pared
             player.tryStickToWall(wallManager.walls)
 
-            // ===== 4) Consumir input con estado actualizado =====
-            if (anyPress && !player.isDead()) {
+            // ===== 4) Consumir edge para iniciar salto/doble salto =====
+            if (justPressed && !player.isDead()) {
                 when {
                     player.isOnWall()   -> player.jumpFromWall()
                     player.isOnGround() -> player.jumpFromGround(towardsRight = initialJumpToRight)
-                    // Doble salto en aire: una sola vez y cambia dirección
                     player.isJumping() && player.hasDoubleJump() -> player.doubleJumpFlip()
                 }
             }
@@ -166,9 +162,7 @@ class WallJumperGame : ApplicationAdapter() {
                     floorRect.y -= dy
                     if (floorRect.y + floorRect.height < -200f) floorVisible = false
                 }
-                // Mover también al player para mantenerlo cerca del ancla
                 player.rect.y -= dy
-
                 wallManager.ensureAhead()
             }
 
@@ -187,11 +181,10 @@ class WallJumperGame : ApplicationAdapter() {
         // ===== 7) DRAW =====
         drawFrame()
 
-        // ===== 8) Actualizar flag de pulsación continua al FINAL =====
+        // ===== 8) Fin input continuo =====
         pressedLastFrame = Gdx.input.isTouched
     }
 
-    /** Dibuja la escena + overlay si hay Game Over. */
     private fun drawFrame() {
         Gdx.gl.glClearColor(0.07f, 0.09f, 0.13f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
