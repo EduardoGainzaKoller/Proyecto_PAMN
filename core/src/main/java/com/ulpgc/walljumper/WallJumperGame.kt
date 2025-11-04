@@ -210,7 +210,7 @@ class WallJumperGame : ApplicationAdapter() {
         if (gameOver) {
             batch.projectionMatrix = cam.combined
             batch.begin()
-            val msg = "GAME OVER\nTap/SPACE to restart"
+            val msg = "GAME OVER\nTap to restart"
             layout.setText(font, msg)
             val textX = (W - layout.width) / 2f
             val textY = H / 2f + layout.height / 2f
