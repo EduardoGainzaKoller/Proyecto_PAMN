@@ -14,6 +14,7 @@ import com.badlogic.gdx.math.Intersector
 import com.badlogic.gdx.math.Rectangle
 import com.badlogic.gdx.math.Vector3
 import kotlin.math.min
+import kotlin.random.Random
 
 class WallJumperGame : ApplicationAdapter() {
     private lateinit var cam: OrthographicCamera
@@ -46,14 +47,14 @@ class WallJumperGame : ApplicationAdapter() {
     // Pantallas
     private var currentScreen = GameScreen.MENU
 
-    // Ancla vertical para seguir al jugador
+    // Ancla vertical
     private val anchorRatio = 0.42f
     private val anchorY get() = H * anchorRatio
 
-    // Obstáculos
-    private val obstacles = mutableListOf<Rectangle>()
+    // Obstáculos: pinchos triangulares
+    private val spikes = mutableListOf<SpikeTrap>()
 
-    // Suelo inicial
+    // Suelo
     private val floorRect = Rectangle(0f, 0f, W, 18f)
     private var floorVisible = true
     private val floorTop get() = floorRect.y + floorRect.height
@@ -61,8 +62,24 @@ class WallJumperGame : ApplicationAdapter() {
     // Dirección del primer salto
     private var initialJumpToRight = true
 
-    // Botón de play en el menú
+    // Botón de play
     private val playButtonRect = Rectangle(W / 2f - 80f, H / 2f - 80f, 160f, 70f)
+
+    // Game over con delay
+    private var deathTimer = 0f
+    private var deathBySpikes = false
+
+    // “Trocitos” del personaje
+    data class PlayerChunk(
+        var x: Float,
+        var y: Float,
+        var w: Float,
+        var h: Float,
+        var vx: Float,
+        var vy: Float
+    )
+
+    private val chunks = mutableListOf<PlayerChunk>()
 
     override fun create() {
         cam = OrthographicCamera(W, H).apply { setToOrtho(false, W, H) }
@@ -83,6 +100,10 @@ class WallJumperGame : ApplicationAdapter() {
     private fun initRun() {
         started = false
         currentHeight = 0f
+        bestHeight = 0f
+        deathTimer = 0f
+        deathBySpikes = false
+        chunks.clear()
 
         floorRect.set(0f, 0f, W, 18f)
         floorVisible = true
@@ -103,11 +124,27 @@ class WallJumperGame : ApplicationAdapter() {
         wallManager.spawnFirstFromGround(player.rect, floorTop, initialJumpToRight)
         wallManager.ensureAhead()
 
-        spawnInitialObstacles()
+        spikes.clear()
+        syncSpikesWithWalls()
     }
 
-    private fun spawnInitialObstacles() {
-        obstacles.clear()
+    /**
+     * Sincroniza la lista de pinchos con las paredes actuales:
+     * - cada pared con hasSpikes == true tiene exactamente un SpikeTrap.
+     * - si una pared desaparece (scroll), se eliminan sus SpikeTrap.
+     */
+    private fun syncSpikesWithWalls() {
+        val activeWalls = wallManager.walls
+
+        // Eliminar pinchos cuyas paredes ya no existen
+        spikes.removeAll { spike -> activeWalls.none { it === spike.wall } }
+
+        // Añadir pinchos donde falta
+        for (w in activeWalls) {
+            if (w.hasSpikes && spikes.none { it.wall === w }) {
+                spikes += SpikeTrap(w)
+            }
+        }
     }
 
     override fun render() {
@@ -157,34 +194,44 @@ class WallJumperGame : ApplicationAdapter() {
             if (!started) started = true
         }
 
-        // Física del jugador
+        // Actualizar jugador
         player.update(dt)
 
-        // Estados pared/suelo
-        player.detachFromWallIfNotOverlapping(wallManager.walls)
+        // Actualizar pinchos
+        spikes.forEach { it.update(dt) }
 
-        if (floorVisible && player.verticalSpeed() <= 0f) {
-            if (player.rect.y <= floorTop) {
-                player.landOnGround(floorTop)
+        // Actualizar trocitos si está roto por pinchos
+        if (deathBySpikes && player.isDead()) {
+            updateChunks(dt)
+        }
+
+        if (!player.isDead()) {
+            // Pared/suelo solo si está vivo
+            player.detachFromWallIfNotOverlapping(wallManager.walls)
+
+            if (floorVisible && player.verticalSpeed() <= 0f) {
+                if (player.rect.y <= floorTop) {
+                    player.landOnGround(floorTop)
+                }
+            }
+
+            player.tryStickToWall(wallManager.walls)
+
+            if (justPressed) {
+                when {
+                    player.isOnWall()   -> player.jumpFromWall()
+                    player.isOnGround() -> player.jumpFromGround(towardsRight = initialJumpToRight)
+                    player.isJumping() && player.hasDoubleJump() -> player.doubleJumpFlip()
+                }
             }
         }
 
-        player.tryStickToWall(wallManager.walls)
-
-        // Consumir edge para iniciar salto/doble salto
-        if (justPressed && !player.isDead()) {
-            when {
-                player.isOnWall()   -> player.jumpFromWall()
-                player.isOnGround() -> player.jumpFromGround(towardsRight = initialJumpToRight)
-                player.isJumping() && player.hasDoubleJump() -> player.doubleJumpFlip()
-            }
-        }
-
-        // Scroll anclado al jugador
+        // Scroll
         var dy = 0f
         if (started && !player.isDead()
             && !player.isOnWall() && !player.isOnGround()
-            && player.verticalSpeed() > 0f) {
+            && player.verticalSpeed() > 0f
+        ) {
             val excess = player.rect.y - anchorY
             if (excess > 0f) dy = excess
         }
@@ -199,24 +246,78 @@ class WallJumperGame : ApplicationAdapter() {
             }
             player.rect.y -= dy
             wallManager.ensureAhead()
+            syncSpikesWithWalls()
         }
 
-        // Colisiones letales
-        for (o in obstacles) {
-            if (Intersector.overlaps(player.rect, o)) {
-                player.kill()
-                break
+        // Colisiones letales con pinchos
+        if (!player.isDead()) {
+            for (spike in spikes) {
+                if (spike.isDangerous && Intersector.overlaps(player.rect, spike.hitbox)) {
+                    player.kill()
+                    deathTimer = 1f
+                    deathBySpikes = true
+                    spawnPlayerChunks()
+                    break
+                }
             }
         }
-        if (player.rect.y + player.rect.height < 0f) player.kill()
 
+        // Caída fuera de la pantalla
+        if (!player.isDead() && player.rect.y + player.rect.height < 0f) {
+            player.kill()
+            deathTimer = 1f
+            deathBySpikes = false
+            chunks.clear()
+        }
+
+        // Cuenta atrás hasta GAME OVER
         if (player.isDead()) {
-            if (bestHeight > highScore) highScore = bestHeight
-            currentScreen = GameScreen.GAME_OVER
-            started = false
+            deathTimer -= dt
+            if (deathTimer <= 0f) {
+                if (bestHeight > highScore) highScore = bestHeight
+                currentScreen = GameScreen.GAME_OVER
+                started = false
+            }
         }
 
         pressedLastFrame = Gdx.input.isTouched
+    }
+
+    private fun spawnPlayerChunks() {
+        chunks.clear()
+        val base = player.rect
+
+        val cols = 2
+        val rows = 3
+        val pieceW = base.width / cols
+        val pieceH = base.height / rows
+
+        for (i in 0 until cols) {
+            for (j in 0 until rows) {
+                val x = base.x + i * pieceW
+                val y = base.y + j * pieceH
+
+                val vx = Random.nextFloat() * 220f - 110f    // -110 .. 110
+                val vy = Random.nextFloat() * 220f + 80f     // 80 .. 300
+
+                chunks += PlayerChunk(x, y, pieceW, pieceH, vx, vy)
+            }
+        }
+    }
+
+    private fun updateChunks(dt: Float) {
+        val g = 900f
+        val it = chunks.iterator()
+        while (it.hasNext()) {
+            val c = it.next()
+            c.vy -= g * dt
+            c.x += c.vx * dt
+            c.y += c.vy * dt
+
+            if (c.y + c.h < -150f) {
+                it.remove()
+            }
+        }
     }
 
     private fun drawFrame() {
@@ -231,17 +332,19 @@ class WallJumperGame : ApplicationAdapter() {
         }
     }
 
+    // ================== DIBUJO ==================
+
     private fun drawMenu() {
         shapes.projectionMatrix = cam.combined
         batch.projectionMatrix = cam.combined
 
-        // Dibujar botón de play
+        // Botón de play
         shapes.begin(ShapeRenderer.ShapeType.Filled)
         shapes.color = Color(0.2f, 0.6f, 0.9f, 1f)
         shapes.rect(playButtonRect.x, playButtonRect.y, playButtonRect.width, playButtonRect.height)
         shapes.end()
 
-        // Dibujar borde del botón
+        // Borde del botón
         shapes.begin(ShapeRenderer.ShapeType.Line)
         shapes.color = Color.WHITE
         Gdx.gl.glLineWidth(3f)
@@ -250,21 +353,18 @@ class WallJumperGame : ApplicationAdapter() {
 
         batch.begin()
 
-        // Título del juego
         val title = "WALL JUMPER"
         layout.setText(titleFont, title)
         val titleX = (W - layout.width) / 2f
         val titleY = H * 0.7f
         titleFont.draw(batch, layout, titleX, titleY)
 
-        // Texto del botón
         val playText = "PLAY"
         layout.setText(font, playText)
         val playX = playButtonRect.x + (playButtonRect.width - layout.width) / 2f
         val playY = playButtonRect.y + (playButtonRect.height + layout.height) / 2f
         font.draw(batch, layout, playX, playY)
 
-        // High score
         if (highScore > 0f) {
             val scoreText = "Best: ${highScore.toInt()}"
             layout.setText(font, scoreText)
@@ -280,25 +380,42 @@ class WallJumperGame : ApplicationAdapter() {
         shapes.projectionMatrix = cam.combined
         shapes.begin(ShapeRenderer.ShapeType.Filled)
 
+        // Suelo
         if (floorVisible) {
             shapes.color = Color.WHITE
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
+        // Paredes
         shapes.color = Color.WHITE
         wallManager.walls.forEach { w ->
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 
-        shapes.color = Color.RED
-        shapes.rect(player.rect.x, player.rect.y, player.rect.width, player.rect.height)
+        // Player o trocitos
+        if (!player.isDead() || !deathBySpikes) {
+            shapes.color = Color.RED
+            shapes.rect(player.rect.x, player.rect.y, player.rect.width, player.rect.height)
+        }
+        if (deathBySpikes) {
+            shapes.color = Color.RED
+            chunks.forEach { c ->
+                shapes.rect(c.x, c.y, c.w, c.h)
+            }
+        }
 
-        shapes.color = Color.ORANGE
-        obstacles.forEach { shapes.rect(it.x, it.y, it.width, it.height) }
+        // Pinchos triangulares
+        spikes.forEach { spike ->
+            spike.draw(
+                shapes,
+                dangerousColor = Color.ORANGE,
+                hiddenColor = Color(0.7f, 0.4f, 0.2f, 1f)
+            )
+        }
 
         shapes.end()
 
-        // Mostrar altura actual
+        // Altura
         batch.projectionMatrix = cam.combined
         batch.begin()
         val heightText = "Height: ${currentHeight.toInt()}"
@@ -308,26 +425,43 @@ class WallJumperGame : ApplicationAdapter() {
     }
 
     private fun drawGameOver() {
-        // Dibujar el último estado del juego en gris
         shapes.projectionMatrix = cam.combined
         shapes.begin(ShapeRenderer.ShapeType.Filled)
 
+        // Suelo atenuado
         if (floorVisible) {
             shapes.color = Color(0.3f, 0.3f, 0.3f, 1f)
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
+        // Paredes atenuadas
         shapes.color = Color(0.3f, 0.3f, 0.3f, 1f)
         wallManager.walls.forEach { w ->
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 
-        shapes.color = Color(0.5f, 0.2f, 0.2f, 1f)
-        shapes.rect(player.rect.x, player.rect.y, player.rect.width, player.rect.height)
+        // Player/trocitos en tonos apagados
+        if (!deathBySpikes) {
+            shapes.color = Color(0.5f, 0.2f, 0.2f, 1f)
+            shapes.rect(player.rect.x, player.rect.y, player.rect.width, player.rect.height)
+        } else {
+            shapes.color = Color(0.5f, 0.2f, 0.2f, 1f)
+            chunks.forEach { c ->
+                shapes.rect(c.x, c.y, c.w, c.h)
+            }
+        }
+
+        // Pinchos en gris
+        spikes.forEach { spike ->
+            spike.draw(
+                shapes,
+                dangerousColor = Color(0.5f, 0.5f, 0.5f, 1f),
+                hiddenColor = Color(0.4f, 0.3f, 0.3f, 1f)
+            )
+        }
 
         shapes.end()
 
-        // Texto de game over
         batch.projectionMatrix = cam.combined
         batch.begin()
 

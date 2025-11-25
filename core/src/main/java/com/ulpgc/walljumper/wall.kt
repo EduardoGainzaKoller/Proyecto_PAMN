@@ -6,5 +6,6 @@ enum class WallSide { LEFT, RIGHT }
 
 data class Wall(
     val side: WallSide,
-    val rect: Rectangle
+    val rect: Rectangle,
+    val hasSpikes: Boolean = false
 )
