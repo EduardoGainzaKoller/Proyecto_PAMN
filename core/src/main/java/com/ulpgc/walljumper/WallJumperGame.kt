@@ -418,9 +418,16 @@ class WallJumperGame : ApplicationAdapter() {
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
-        // Paredes (blancas normales, rosas rebotadoras)
+        // Paredes:
+        // - rebotadoras -> rosa
+        // - con pinchos -> naranja (mismo color que los pinchos peligrosos)
+        // - normales    -> blancas
         wallManager.walls.forEach { w ->
-            shapes.color = if (w.isBounce) Color.PINK else Color.WHITE
+            shapes.color = when {
+                w.isBounce  -> Color.PINK
+                w.hasSpikes -> Color.ORANGE
+                else        -> Color.WHITE
+            }
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 
@@ -466,12 +473,16 @@ class WallJumperGame : ApplicationAdapter() {
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
-        // Paredes atenuadas (bounce en rosa apagado)
+        // Paredes atenuadas:
+        // - rebotadoras -> rosa apagado
+        // - con pinchos -> gris claro (mismo tono que pinchos en GO)
+        // - normales    -> gris oscuro
         wallManager.walls.forEach { w ->
-            shapes.color = if (w.isBounce)
-                Color(1f, 0.6f, 0.8f, 1f)   // rosa apagado
-            else
-                Color(0.3f, 0.3f, 0.3f, 1f)
+            shapes.color = when {
+                w.isBounce  -> Color(1f, 0.6f, 0.8f, 1f)       // rosa apagado
+                w.hasSpikes -> Color(0.5f, 0.5f, 0.5f, 1f)     // gris pinchos
+                else        -> Color(0.3f, 0.3f, 0.3f, 1f)
+            }
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 

@@ -212,15 +212,21 @@ class Player(
     /** Rebote lateral contra pared rosa. dir = +1 derecha, -1 izquierda. */
     fun bounce(dir: Float) {
         if (state == State.DEAD) return
-        // Que el rebote se sienta como un salto normal:
-        vx = dir * jumpVX
-        vy = jumpVYMin
+
+        // Rebote más potente y más diagonal que un salto normal
+        val boostX = jumpVX * 1.35f   // 35% más fuerza horizontal
+        val boostY = jumpVYMin * 1.25f // 25% más fuerza vertical
+
+        vx = dir * boostX
+        vy = boostY
         state = State.JUMPING
 
         // Desde el rebote tienes doble salto disponible
         canDoubleJump = true
         wallCoyoteTimer = 0f
-        ungrabbableTimer = UNGRAB_TIME
+
+        // Evita pegarse inmediatamente a la siguiente pared
+        ungrabbableTimer = 0.12f
         holdTimer = 0f
     }
 
