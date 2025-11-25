@@ -69,6 +69,9 @@ class WallJumperGame : ApplicationAdapter() {
     private var deathTimer = 0f
     private var deathBySpikes = false
 
+    // Bloqueo de input al empezar (para que no salte al tocar PLAY)
+    private var playInputLock = 0f
+
     // “Trocitos” del personaje
     data class PlayerChunk(
         var x: Float,
@@ -128,11 +131,6 @@ class WallJumperGame : ApplicationAdapter() {
         syncSpikesWithWalls()
     }
 
-    /**
-     * Sincroniza la lista de pinchos con las paredes actuales:
-     * - cada pared con hasSpikes == true tiene exactamente un SpikeTrap.
-     * - si una pared desaparece (scroll), se eliminan sus SpikeTrap.
-     */
     private fun syncSpikesWithWalls() {
         val activeWalls = wallManager.walls
 
@@ -169,6 +167,7 @@ class WallJumperGame : ApplicationAdapter() {
             if (playButtonRect.contains(touchPos.x, touchPos.y)) {
                 initRun()
                 currentScreen = GameScreen.PLAYING
+                playInputLock = 0.25f // tiempo de gracia para no saltar con el tap del botón
             }
         }
     }
@@ -183,10 +182,21 @@ class WallJumperGame : ApplicationAdapter() {
     }
 
     private fun handlePlaying(dt: Float) {
-        val justPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) ||
+        // Reducir bloqueo de input si está activo
+        if (playInputLock > 0f) {
+            playInputLock -= dt
+            if (playInputLock < 0f) playInputLock = 0f
+        }
+
+        // Input crudo de teclado/pantalla
+        val rawJustPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) ||
             Gdx.input.justTouched() ||
             (Gdx.input.isTouched && !pressedLastFrame)
-        val isHeld = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isTouched
+        val rawIsHeld = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isTouched
+
+        // Solo contamos input si ha terminado el bloqueo
+        val justPressed = rawJustPressed && playInputLock <= 0f
+        val isHeld = rawIsHeld && playInputLock <= 0f
 
         player.setJumpHeld(isHeld)
 
@@ -332,7 +342,7 @@ class WallJumperGame : ApplicationAdapter() {
         }
     }
 
-    // ================== DIBUJO ==================
+    // Dibujo
 
     private fun drawMenu() {
         shapes.projectionMatrix = cam.combined
