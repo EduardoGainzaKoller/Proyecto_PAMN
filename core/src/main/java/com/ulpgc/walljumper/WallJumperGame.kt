@@ -131,6 +131,11 @@ class WallJumperGame : ApplicationAdapter() {
         syncSpikesWithWalls()
     }
 
+    /**
+     * Sincroniza la lista de pinchos con las paredes actuales:
+     * - cada pared con hasSpikes == true tiene exactamente un SpikeTrap.
+     * - si una pared desaparece (scroll), se eliminan sus SpikeTrap.
+     */
     private fun syncSpikesWithWalls() {
         val activeWalls = wallManager.walls
 
@@ -227,6 +232,22 @@ class WallJumperGame : ApplicationAdapter() {
 
             player.tryStickToWall(wallManager.walls)
 
+            // === REBOTE EN PAREDES ROSAS ===
+            for (w in wallManager.walls) {
+                if (!w.isBounce) continue
+                if (Intersector.overlaps(player.rect, w.rect)) {
+                    if (w.side == WallSide.LEFT) {
+                        // pared izquierda → rebota hacia la derecha
+                        player.rect.x = w.rect.x + w.rect.width + 1f
+                        player.bounce(+1f)
+                    } else {
+                        // pared derecha → rebota hacia la izquierda
+                        player.rect.x = w.rect.x - player.rect.width - 1f
+                        player.bounce(-1f)
+                    }
+                }
+            }
+
             if (justPressed) {
                 when {
                     player.isOnWall()   -> player.jumpFromWall()
@@ -290,6 +311,7 @@ class WallJumperGame : ApplicationAdapter() {
             }
         }
 
+        // Esto debe usar el input crudo
         pressedLastFrame = Gdx.input.isTouched
     }
 
@@ -342,7 +364,7 @@ class WallJumperGame : ApplicationAdapter() {
         }
     }
 
-    // Dibujo
+    // ================== DIBUJO ==================
 
     private fun drawMenu() {
         shapes.projectionMatrix = cam.combined
@@ -396,9 +418,9 @@ class WallJumperGame : ApplicationAdapter() {
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
-        // Paredes
-        shapes.color = Color.WHITE
+        // Paredes (blancas normales, rosas rebotadoras)
         wallManager.walls.forEach { w ->
+            shapes.color = if (w.isBounce) Color.PINK else Color.WHITE
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 
@@ -444,9 +466,12 @@ class WallJumperGame : ApplicationAdapter() {
             shapes.rect(floorRect.x, floorRect.y, floorRect.width, floorRect.height)
         }
 
-        // Paredes atenuadas
-        shapes.color = Color(0.3f, 0.3f, 0.3f, 1f)
+        // Paredes atenuadas (bounce en rosa apagado)
         wallManager.walls.forEach { w ->
+            shapes.color = if (w.isBounce)
+                Color(1f, 0.6f, 0.8f, 1f)   // rosa apagado
+            else
+                Color(0.3f, 0.3f, 0.3f, 1f)
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
         }
 

@@ -17,7 +17,8 @@ class WallManager(
     // --- tuning ---
     private val minRise: Float = 80f,
     private val sameSideChance: Float = 0.25f,
-    private val spikeProbability: Float = 0.25f // <- NUEVO: probabilidad de pinchos por pared
+    private val spikeProbability: Float = 0.25f,   // probabilidad de pinchos
+    private val bounceProbability: Float = 0.10f   // probabilidad de pared rosa
 ) {
     val walls = mutableListOf<Wall>()
 
@@ -42,7 +43,7 @@ class WallManager(
         lastContactY = 0f
     }
 
-    /** Primera pared calculada para interceptar salto desde el suelo. */
+    /** Primera pared calculada para interceptar salto desde el suelo. (la de siempre) */
     fun spawnFirstFromGround(
         playerRect: Rectangle,
         groundTop: Float,
@@ -64,20 +65,20 @@ class WallManager(
         val side = if (towardsRight) WallSide.RIGHT else WallSide.LEFT
         val rect = Rectangle(wallX, segmentY, wallWidth, segmentHeight)
 
-        // Primera pared: sin pinchos para no matar al jugador al segundo
-        val wall = Wall(side, rect, hasSpikes = false)
+        // Primera pared: siempre normal, sin pinchos ni rebote
+        val wall = Wall(side = side, rect = rect, hasSpikes = false, isBounce = false)
         walls += wall
 
         lastSide = side
         sameSideCount = 0
-        lastContactY = yAtContact
+        lastContactY = yAtContact  // Guardamos donde TOCA, no el tope
     }
 
     fun applyScroll(dy: Float) {
         if (dy == 0f) return
         walls.forEach { it.rect.y -= dy }
         walls.removeAll { it.rect.y + it.rect.height < -200f }
-        lastContactY -= dy
+        lastContactY -= dy  // IMPORTANTE: También ajustar la última altura de contacto
     }
 
     fun ensureAhead() {
@@ -89,7 +90,7 @@ class WallManager(
         }
     }
 
-    /** Genera una nueva pared. También decide si esta pared tendrá pinchos para siempre o no. */
+    /** Genera una nueva pared según si toca cambio o doble salto. */
     private fun spawnNext() {
         val newSide: WallSide
         val rise: Float
@@ -99,7 +100,7 @@ class WallManager(
             newSide = oppositeOf(lastSide)
             sameSideCount = 0
             // Pared al lado contrario: necesita distancia mínima para el salto lateral
-            val minLateralRise = maxLateralJumpRise * 0.70f
+            val minLateralRise = maxLateralJumpRise * 0.70f  // Al menos 70% de la capacidad
             rise = randomBetween(minLateralRise, maxLateralJumpRise * 0.85f)
         } else {
             val repeatSameSide = Random.nextFloat() < sameSideChance
@@ -107,7 +108,7 @@ class WallManager(
                 // Pared del mismo lado → requiere doble salto
                 newSide = lastSide
                 sameSideCount++
-                val minDoubleRise = maxDoubleJumpRise * 0.60f
+                val minDoubleRise = maxDoubleJumpRise * 0.60f  // Mínimo 60% para doble salto
                 rise = randomBetween(minDoubleRise, maxDoubleJumpRise * 0.85f)
             } else {
                 // Pared al otro lado → salto normal lateral
@@ -118,22 +119,34 @@ class WallManager(
             }
         }
 
+        // La nueva altura de contacto es relativa a donde tocó antes
         val newContactY = lastContactY + rise
+
+        // Posicionamos la pared de modo que el punto de contacto esperado
+        // esté aproximadamente al 70% de la altura de la pared (como en spawnFirst)
         val segmentY = newContactY - segmentHeight * 0.7f
 
         val x = if (newSide == WallSide.LEFT) (leftX - wallWidth) else rightX
 
-        // Menos frecuencia de pinchos y no en las primeras paredes:
-        // solo a partir de que ya haya al menos 3 paredes creadas
         val allowSpikes = walls.size >= 3
-        val hasSpikes = allowSpikes && Random.nextFloat() < spikeProbability
+        val allowBounce = walls.size >= 4
+
+        // Decisión de pared rosa
+        val isBounce = allowBounce && Random.nextFloat() < bounceProbability
+        // Si es rebotadora, no tiene pinchos
+        val hasSpikes = allowSpikes && !isBounce && Random.nextFloat() < spikeProbability
 
         val rect = Rectangle(x, segmentY, wallWidth, segmentHeight)
-        val wall = Wall(newSide, rect, hasSpikes)
+        val wall = Wall(
+            side = newSide,
+            rect = rect,
+            hasSpikes = hasSpikes,
+            isBounce = isBounce
+        )
         walls += wall
 
         lastSide = newSide
-        lastContactY = newContactY
+        lastContactY = newContactY  // Actualizamos el punto de contacto, no el tope
     }
 
     private fun oppositeOf(side: WallSide): WallSide =
