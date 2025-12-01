@@ -6,6 +6,7 @@ import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.OrthographicCamera
+import com.badlogic.gdx.graphics.Texture // Importación necesaria para usar texturas
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
@@ -16,6 +17,9 @@ import com.badlogic.gdx.math.Vector3
 import kotlin.math.min
 import kotlin.random.Random
 
+// NOTA: Se asume que las clases Player, WallManager, SpikeTrap, WallSide y GameScreen
+// ya están definidas en otras partes de tu proyecto, como en el código original.
+
 class WallJumperGame : ApplicationAdapter() {
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
@@ -24,6 +28,9 @@ class WallJumperGame : ApplicationAdapter() {
     private lateinit var titleFont: BitmapFont
     private val layout = GlyphLayout()
     private val touchPos = Vector3()
+
+    // ✨ Texturas para el fondo (NUEVA VARIABLE)
+    private lateinit var background: Texture
 
     // Mundo
     private val W = 480f
@@ -96,6 +103,9 @@ class WallJumperGame : ApplicationAdapter() {
             data.setScale(4f)
             color = Color.WHITE
         }
+
+        // CARGA DEL FONDO
+        background = Texture(Gdx.files.internal("background.png"))
 
         currentScreen = GameScreen.MENU
     }
@@ -409,6 +419,29 @@ class WallJumperGame : ApplicationAdapter() {
     }
 
     private fun drawGame() {
+
+        batch.projectionMatrix = cam.combined
+        batch.begin()
+
+
+        // Calculamos el borde inferior visible de la cámara.
+        val camY = cam.position.y - cam.viewportHeight / 2f
+
+        // Dibujamos el fondo UNA SOLA VEZ, ajustándolo exactamente a las dimensiones
+        // de la cámara (W x H) y posicionándolo en el borde inferior de la vista (camY).
+        batch.draw(background, 0f, camY, W, H)
+
+
+        // Altura (UI que también debe ser estática en la pantalla)
+        val heightText = "Height: ${currentHeight.toInt()}"
+        layout.setText(font, heightText)
+        // El texto se dibuja usando camY para que quede fijo en la esquina superior
+        font.draw(batch, layout, 20f, camY + H - 20f)
+
+        batch.end() // ⬅️ Finalizamos Batch antes de usar ShapeRenderer
+
+
+
         shapes.projectionMatrix = cam.combined
         shapes.begin(ShapeRenderer.ShapeType.Filled)
 
@@ -453,14 +486,6 @@ class WallJumperGame : ApplicationAdapter() {
         }
 
         shapes.end()
-
-        // Altura
-        batch.projectionMatrix = cam.combined
-        batch.begin()
-        val heightText = "Height: ${currentHeight.toInt()}"
-        layout.setText(font, heightText)
-        font.draw(batch, layout, 20f, H - 20f)
-        batch.end()
     }
 
     private fun drawGameOver() {
@@ -547,5 +572,8 @@ class WallJumperGame : ApplicationAdapter() {
         batch.dispose()
         font.dispose()
         titleFont.dispose()
+
+        // 🗑️ DISPONER EL FONDO
+        background.dispose()
     }
 }

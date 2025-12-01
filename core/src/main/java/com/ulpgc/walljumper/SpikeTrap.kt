@@ -7,7 +7,7 @@ import com.badlogic.gdx.math.Rectangle
 class SpikeTrap(
     val wall: Wall,
     private val depth: Float = 26f,
-    private val cycleDuration: Float = 3.0f,   // más rápido → animación más frecuente
+    private val cycleDuration: Float = 3.6f,   // más rápido → animación más frecuente
     private val segments: Int = 12             // cantidad de triángulos a lo largo de la pared
 ) {
     val hitbox = Rectangle()
