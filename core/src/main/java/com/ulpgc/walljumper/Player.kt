@@ -11,19 +11,22 @@ class Player(
 
     val rect = Rectangle(startX - 16f, startY, 24f, 24f)
 
-    // ===== Tuning de física (coincidir con WallManager en VX/grav) =====
+    // ===== Tuning de física =====
     private val gravity = 900f
-    var slideSpeed = 120f
+    var slideSpeed = 120f              // base para paredes normales
     private val jumpVX = 420f
 
-    // Salto variable por hold
-    private val jumpVYMin = 420f       // impulso vertical inicial (tap corto)
-    private val jumpVYMax = 620f       // techo de velocidad si mantienes
-    private val holdDurationMax = 0.18f// cuánto tiempo puedes “sostener” (seg)
-    private val holdBoostAccel = 2400f // aceleración extra hacia arriba mientras mantienes
-    private val jumpCutVy = 140f       // al soltar pronto, si vy > cut, clamp a este valor
+    // ❗ NUEVO: tuning para paredes especiales
+    private val fastSlideMultiplier = 1.8f   // azules -> caes más rápido
+    private val climbSpeed = 140f           // rojas -> subes a esta velocidad
 
-    // ===== Estado dinámico =====
+    // Salto variable por hold...
+    private val jumpVYMin = 420f
+    private val jumpVYMax = 620f
+    private val holdDurationMax = 0.18f
+    private val holdBoostAccel = 2400f
+    private val jumpCutVy = 140f
+
     private var vx = 0f
     private var vy = 0f
     var state: State = State.ON_GROUND
@@ -31,28 +34,26 @@ class Player(
     var onWallLeft = true
         private set
 
-    private val EPS = 0.8f // tolerancia contacto
+    private val EPS = 0.8f
 
-    // --- Timers de robustez ---
     private var wallCoyoteTimer = 0f
     private val WALL_COYOTE_MAX = 0.15f
     private var ungrabbableTimer = 0f
     private val UNGRAB_TIME = 0.10f
 
-    // --- Doble salto ---
     private var canDoubleJump = false
 
-    // --- Hold del salto (variable jump height) ---
-    private var isJumpHeld = false      // input actual (lo marca el Game)
-    private var wasJumpHeld = false     // input del frame anterior
-    private var holdTimer = 0f          // tiempo sosteniendo desde que empezó el salto
+    private var isJumpHeld = false
+    private var wasJumpHeld = false
+    private var holdTimer = 0f
+
+    // ❗ NUEVO: pared en la que estás apoyado
+    private var currentWall: Wall? = null
 
     fun update(dt: Float) {
-        // Timers
         if (wallCoyoteTimer > 0f) wallCoyoteTimer -= dt
         if (ungrabbableTimer > 0f) ungrabbableTimer -= dt
 
-        // Detectar borde de soltar para jump-cut
         val releasedThisFrame = (wasJumpHeld && !isJumpHeld)
 
         when (state) {
@@ -65,20 +66,29 @@ class Player(
                 canDoubleJump = true
                 vx = 0f; vy = 0f
                 holdTimer = 0f
-                if (slideSpeed > 0f) rect.y -= slideSpeed * dt
+
+                val effect = currentWall?.verticalEffect ?: WallVerticalEffect.NORMAL
+                when (effect) {
+                    WallVerticalEffect.NORMAL -> {
+                        if (slideSpeed > 0f) rect.y -= slideSpeed * dt
+                    }
+                    WallVerticalEffect.FAST_DOWN -> {
+                        if (slideSpeed > 0f) rect.y -= slideSpeed * fastSlideMultiplier * dt
+                    }
+                    WallVerticalEffect.LIFT_UP -> {
+                        rect.y += climbSpeed * dt
+                    }
+                }
             }
             State.JUMPING -> {
-                // Gravedad base
                 vy -= gravity * dt
 
-                // Sostener salto mientras mantienes (hasta holdDurationMax) y solo hacia jumpVYMax
                 if (isJumpHeld && holdTimer < holdDurationMax && vy < jumpVYMax) {
                     vy += holdBoostAccel * dt
                     if (vy > jumpVYMax) vy = jumpVYMax
                     holdTimer += dt
                 }
 
-                // Si sueltas pronto, aplicar jump-cut (solo si aún subes rápido)
                 if (releasedThisFrame && vy > jumpCutVy) {
                     vy = jumpCutVy
                 }
@@ -87,7 +97,6 @@ class Player(
                 rect.y += vy * dt
             }
             State.DEAD -> {
-                // Al morir, que simplemente caiga
                 vy -= gravity * dt
                 rect.y += vy * dt
             }
@@ -96,12 +105,10 @@ class Player(
         wasJumpHeld = isJumpHeld
     }
 
-    /** El Game debe llamar cada frame para informar si el botón está mantenido. */
     fun setJumpHeld(held: Boolean) {
         isJumpHeld = held
     }
 
-    /** “Touching” con tolerancia: considera contacto con pared aunque no haya overlaps exacto. */
     private fun touchingOrOverlapping(w: Wall): Boolean {
         val vertOverlap = rect.y < (w.rect.y + w.rect.height) && (rect.y + rect.height) > w.rect.y
         val touchingHoriz = when (w.side) {
@@ -111,14 +118,12 @@ class Player(
         return vertOverlap && (rect.overlaps(w.rect) || touchingHoriz)
     }
 
-    /** Pega al jugador a una pared en el trayecto del salto (si procede). */
     fun tryStickToWall(walls: List<Wall>) {
         if (state != State.JUMPING) return
         if (ungrabbableTimer > 0f) return
 
         val goingRight = vx > 0f
         val candidates = walls.filter {
-            // ❗ NO pegarse a paredes rebotadoras
             !it.isBounce &&
                 if (goingRight) it.side == WallSide.RIGHT else it.side == WallSide.LEFT
         }
@@ -136,6 +141,9 @@ class Player(
                 state = State.ON_WALL
                 canDoubleJump = true
                 holdTimer = 0f
+
+                // ❗ Guardamos la pared actual
+                currentWall = w
                 return
             }
         }
@@ -146,7 +154,7 @@ class Player(
         val stillTouching = walls.any { touchingOrOverlapping(it) }
         if (!stillTouching) {
             state = State.JUMPING
-            // mantiene vy actual
+            currentWall = null
         }
     }
 
@@ -155,7 +163,7 @@ class Player(
 
         val dir = if (onWallLeft) +1f else -1f
         vx = dir * jumpVX
-        vy = jumpVYMin               // impulso inicial bajo; el hold lo subirá
+        vy = jumpVYMin
         state = State.JUMPING
 
         if (onWallLeft) rect.x += EPS else rect.x -= EPS
@@ -163,22 +171,22 @@ class Player(
 
         canDoubleJump = true
         wallCoyoteTimer = 0f
-        // Reiniciar acumulador de hold al arrancar salto
         holdTimer = 0f
+        currentWall = null
     }
 
     fun jumpFromGround(towardsRight: Boolean = true) {
         if (state != State.ON_GROUND) return
         val dir = if (towardsRight) +1f else -1f
         vx = dir * jumpVX
-        vy = jumpVYMin               // impulso inicial bajo; el hold lo subirá
+        vy = jumpVYMin
         state = State.JUMPING
         ungrabbableTimer = 0f
         canDoubleJump = true
         holdTimer = 0f
+        currentWall = null
     }
 
-    /** Doble salto: invierte dirección y aplica impulso; se beneficia del hold también. */
     fun doubleJumpFlip() {
         if (state != State.JUMPING) return
         if (!canDoubleJump) return
@@ -186,10 +194,10 @@ class Player(
         val currentDir = if (vx >= 0f) +1f else -1f
         val newDir = -currentDir
         vx = newDir * jumpVX
-        vy = jumpVYMin               // arranca bajo; hold puede elevar hasta jumpVYMax
+        vy = jumpVYMin
         canDoubleJump = false
         ungrabbableTimer = UNGRAB_TIME
-        holdTimer = 0f               // reinicia ventana de hold para el doble salto
+        holdTimer = 0f
     }
 
     fun landOnGround(groundTop: Float) {
@@ -200,34 +208,31 @@ class Player(
         ungrabbableTimer = 0f
         canDoubleJump = false
         holdTimer = 0f
+        currentWall = null
     }
 
     fun kill() {
         if (state == State.DEAD) return
         state = State.DEAD
         vx = 0f
-        // vy se mantiene y la gravedad hará que caiga
+        currentWall = null
     }
 
-    /** Rebote lateral contra pared rosa. dir = +1 derecha, -1 izquierda. */
     fun bounce(dir: Float) {
         if (state == State.DEAD) return
 
-        // Rebote más potente y más diagonal que un salto normal
-        val boostX = jumpVX * 1.35f   // 35% más fuerza horizontal
-        val boostY = jumpVYMin * 1.25f // 25% más fuerza vertical
+        val boostX = jumpVX * 1.35f
+        val boostY = jumpVYMin * 1.25f
 
         vx = dir * boostX
         vy = boostY
         state = State.JUMPING
 
-        // Desde el rebote tienes doble salto disponible
         canDoubleJump = true
         wallCoyoteTimer = 0f
-
-        // Evita pegarse inmediatamente a la siguiente pared
         ungrabbableTimer = 0.12f
         holdTimer = 0f
+        currentWall = null
     }
 
     fun isDead() = state == State.DEAD

@@ -6,7 +6,7 @@ import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.OrthographicCamera
-import com.badlogic.gdx.graphics.Texture // Importación necesaria para usar texturas
+import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
@@ -17,9 +17,6 @@ import com.badlogic.gdx.math.Vector3
 import kotlin.math.min
 import kotlin.random.Random
 
-// NOTA: Se asume que las clases Player, WallManager, SpikeTrap, WallSide y GameScreen
-// ya están definidas en otras partes de tu proyecto, como en el código original.
-
 class WallJumperGame : ApplicationAdapter() {
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
@@ -29,7 +26,7 @@ class WallJumperGame : ApplicationAdapter() {
     private val layout = GlyphLayout()
     private val touchPos = Vector3()
 
-    // ✨ Texturas para el fondo (NUEVA VARIABLE)
+    // Fondo
     private lateinit var background: Texture
 
     // Mundo
@@ -43,6 +40,12 @@ class WallJumperGame : ApplicationAdapter() {
     // Entidades
     private lateinit var player: Player
     private lateinit var wallManager: WallManager
+
+    // === Monedas ===
+    private val coins = mutableListOf<Coin>()
+    private val coinSize = 18f
+    private var coinsCollected = 0
+    private val coinSpawnChance = 0.18f // probabilidad por pared (baja)
 
     // Scroll/estado
     private var currentHeight = 0f
@@ -58,7 +61,7 @@ class WallJumperGame : ApplicationAdapter() {
     private val anchorRatio = 0.42f
     private val anchorY get() = H * anchorRatio
 
-    // Obstáculos: pinchos triangulares
+    // Obstáculos: pinchos
     private val spikes = mutableListOf<SpikeTrap>()
 
     // Suelo
@@ -76,7 +79,7 @@ class WallJumperGame : ApplicationAdapter() {
     private var deathTimer = 0f
     private var deathBySpikes = false
 
-    // Bloqueo de input al empezar (para que no salte al tocar PLAY)
+    // Bloqueo de input al empezar
     private var playInputLock = 0f
 
     // “Trocitos” del personaje
@@ -104,11 +107,12 @@ class WallJumperGame : ApplicationAdapter() {
             color = Color.WHITE
         }
 
-        // CARGA DEL FONDO
         background = Texture(Gdx.files.internal("background.png"))
 
         currentScreen = GameScreen.MENU
     }
+
+    // ================== INIT / RESET ==================
 
     private fun initRun() {
         started = false
@@ -121,15 +125,22 @@ class WallJumperGame : ApplicationAdapter() {
         floorRect.set(0f, 0f, W, 18f)
         floorVisible = true
 
+        // Reset jugador
         player = Player(W * 0.5f, floorTop)
 
+        // Reset monedas
+        coins.clear()
+        coinsCollected = 0
+
+        // WallManager con callback para monedas y paredes especiales
         wallManager = WallManager(
             worldW = W,
             worldH = H,
             leftX = wallLeftX,
             rightX = wallRightX,
             wallWidth = 10f,
-            segmentHeight = 140f
+            segmentHeight = 140f,
+            onWallSpawned = { wall -> maybeSpawnCoinForWall(wall) }
         )
 
         wallManager.resetEmpty()
@@ -137,14 +148,54 @@ class WallJumperGame : ApplicationAdapter() {
         wallManager.spawnFirstFromGround(player.rect, floorTop, initialJumpToRight)
         wallManager.ensureAhead()
 
+        // Pinchos
         spikes.clear()
         syncSpikesWithWalls()
     }
 
     /**
-     * Sincroniza la lista de pinchos con las paredes actuales:
-     * - cada pared con hasSpikes == true tiene exactamente un SpikeTrap.
-     * - si una pared desaparece (scroll), se eliminan sus SpikeTrap.
+     * Decide si generar una moneda asociada a una pared recién creada.
+     * La probabilidad es baja para que no haya demasiadas monedas.
+     */
+    private fun maybeSpawnCoinForWall(wall: Wall) {
+        // Evitar monedas muy cerca del suelo
+        if (wall.rect.y < floorTop + 60f) return
+
+        // Probabilidad total de que haya moneda en esta pared
+        if (Random.nextFloat() > coinSpawnChance) return
+
+        val type = if (Random.nextBoolean()) CoinType.WALL else CoinType.CENTER
+
+        val rect = when (type) {
+            CoinType.WALL -> {
+                // Moneda pegada a la pared
+                val padding = 4f
+                val y = wall.rect.y + wall.rect.height * 0.6f
+                val x = if (wall.side == WallSide.LEFT) {
+                    wall.rect.x + wall.rect.width + padding
+                } else {
+                    wall.rect.x - coinSize - padding
+                }
+                Rectangle(x, y, coinSize, coinSize)
+            }
+            CoinType.CENTER -> {
+                // Moneda en el centro entre paredes
+                val x = (W - coinSize) / 2f
+                val y = wall.rect.y + wall.rect.height * 0.5f
+                Rectangle(x, y, coinSize, coinSize)
+            }
+        }
+
+        coins += Coin(
+            rect = rect,
+            type = type,
+            attachedWall = wall,
+            skinId = null  // preparado para skins futuras
+        )
+    }
+
+    /**
+     * Sincroniza la lista de pinchos con las paredes actuales.
      */
     private fun syncSpikesWithWalls() {
         val activeWalls = wallManager.walls
@@ -152,13 +203,15 @@ class WallJumperGame : ApplicationAdapter() {
         // Eliminar pinchos cuyas paredes ya no existen
         spikes.removeAll { spike -> activeWalls.none { it === spike.wall } }
 
-        // Añadir pinchos donde falta
+        // Añadir pinchos donde falten
         for (w in activeWalls) {
             if (w.hasSpikes && spikes.none { it.wall === w }) {
                 spikes += SpikeTrap(w)
             }
         }
     }
+
+    // ================== LOOP PRINCIPAL ==================
 
     override fun render() {
         val dt = min(1f / 60f, Gdx.graphics.deltaTime)
@@ -171,6 +224,8 @@ class WallJumperGame : ApplicationAdapter() {
 
         drawFrame()
     }
+
+    // ================== LÓGICA DE ESTADOS ==================
 
     private fun handleMenu() {
         val justPressed = Gdx.input.justTouched()
@@ -267,7 +322,7 @@ class WallJumperGame : ApplicationAdapter() {
             }
         }
 
-        // Scroll
+        // Scroll de cámara / mundo
         var dy = 0f
         if (started && !player.isDead()
             && !player.isOnWall() && !player.isOnGround()
@@ -286,6 +341,12 @@ class WallJumperGame : ApplicationAdapter() {
                 if (floorRect.y + floorRect.height < -200f) floorVisible = false
             }
             player.rect.y -= dy
+
+            // Scroll de monedas con el mundo
+            coins.forEach { it.rect.y -= dy }
+            // Eliminar monedas que hayan salido muy por debajo o recogidas
+            coins.removeAll { it.rect.y + it.rect.height < -200f || it.collected }
+
             wallManager.ensureAhead()
             syncSpikesWithWalls()
         }
@@ -301,6 +362,17 @@ class WallJumperGame : ApplicationAdapter() {
                     break
                 }
             }
+        }
+
+        // Colisión con monedas (solo si está vivo)
+        if (!player.isDead()) {
+            for (coin in coins) {
+                if (!coin.collected && Intersector.overlaps(player.rect, coin.rect)) {
+                    coin.collected = true
+                    coinsCollected += 1
+                }
+            }
+            coins.removeAll { it.collected }
         }
 
         // Caída fuera de la pantalla
@@ -324,6 +396,8 @@ class WallJumperGame : ApplicationAdapter() {
         // Esto debe usar el input crudo
         pressedLastFrame = Gdx.input.isTouched
     }
+
+    // ================== EFECTO TROZOS ==================
 
     private fun spawnPlayerChunks() {
         chunks.clear()
@@ -362,6 +436,8 @@ class WallJumperGame : ApplicationAdapter() {
         }
     }
 
+    // ================== DIBUJO ==================
+
     private fun drawFrame() {
         Gdx.gl.glClearColor(0.07f, 0.09f, 0.13f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
@@ -373,8 +449,6 @@ class WallJumperGame : ApplicationAdapter() {
             GameScreen.GAME_OVER -> drawGameOver()
         }
     }
-
-    // ================== DIBUJO ==================
 
     private fun drawMenu() {
         shapes.projectionMatrix = cam.combined
@@ -419,28 +493,26 @@ class WallJumperGame : ApplicationAdapter() {
     }
 
     private fun drawGame() {
-
         batch.projectionMatrix = cam.combined
         batch.begin()
-
 
         // Calculamos el borde inferior visible de la cámara.
         val camY = cam.position.y - cam.viewportHeight / 2f
 
-        // Dibujamos el fondo UNA SOLA VEZ, ajustándolo exactamente a las dimensiones
-        // de la cámara (W x H) y posicionándolo en el borde inferior de la vista (camY).
+        // Fondo
         batch.draw(background, 0f, camY, W, H)
 
-
-        // Altura (UI que también debe ser estática en la pantalla)
+        // Altura
         val heightText = "Height: ${currentHeight.toInt()}"
         layout.setText(font, heightText)
-        // El texto se dibuja usando camY para que quede fijo en la esquina superior
         font.draw(batch, layout, 20f, camY + H - 20f)
 
-        batch.end() // ⬅️ Finalizamos Batch antes de usar ShapeRenderer
+        // Contador de monedas
+        val coinText = "Coins: $coinsCollected"
+        layout.setText(font, coinText)
+        font.draw(batch, layout, W - layout.width - 20f, camY + H - 20f)
 
-
+        batch.end() // Finalizamos Batch antes de usar ShapeRenderer
 
         shapes.projectionMatrix = cam.combined
         shapes.begin(ShapeRenderer.ShapeType.Filled)
@@ -453,15 +525,28 @@ class WallJumperGame : ApplicationAdapter() {
 
         // Paredes:
         // - rebotadoras -> rosa
-        // - con pinchos -> naranja (mismo color que los pinchos peligrosos)
-        // - normales    -> blancas
+        // - con pinchos -> naranja
+        // - rojas (LIFT_UP) -> suben
+        // - azules (FAST_DOWN) -> caen más rápido
+        // - normales -> blancas
         wallManager.walls.forEach { w ->
             shapes.color = when {
                 w.isBounce  -> Color.PINK
                 w.hasSpikes -> Color.ORANGE
+                w.verticalEffect == WallVerticalEffect.LIFT_UP ->
+                    Color.RED
+                w.verticalEffect == WallVerticalEffect.FAST_DOWN ->
+                    Color.BLUE
                 else        -> Color.WHITE
             }
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
+        }
+
+        // Monedas (por ahora círculos dorados, en el futuro usa skinId + texturas)
+        shapes.color = Color.GOLD
+        coins.forEach { coin ->
+            val r = coin.rect.width / 2f
+            shapes.circle(coin.rect.x + r, coin.rect.y + r, r, 18)
         }
 
         // Player o trocitos
@@ -500,12 +585,18 @@ class WallJumperGame : ApplicationAdapter() {
 
         // Paredes atenuadas:
         // - rebotadoras -> rosa apagado
-        // - con pinchos -> gris claro (mismo tono que pinchos en GO)
-        // - normales    -> gris oscuro
+        // - con pinchos -> gris claro
+        // - rojas LIFT_UP -> rojo apagado
+        // - azules FAST_DOWN -> azul apagado
+        // - normales -> gris oscuro
         wallManager.walls.forEach { w ->
             shapes.color = when {
-                w.isBounce  -> Color(1f, 0.6f, 0.8f, 1f)       // rosa apagado
-                w.hasSpikes -> Color(0.5f, 0.5f, 0.5f, 1f)     // gris pinchos
+                w.isBounce  -> Color(1f, 0.6f, 0.8f, 1f)      // rosa apagado
+                w.hasSpikes -> Color(0.5f, 0.5f, 0.5f, 1f)    // gris claro
+                w.verticalEffect == WallVerticalEffect.LIFT_UP ->
+                    Color(0.6f, 0.2f, 0.2f, 1f)              // rojo apagado
+                w.verticalEffect == WallVerticalEffect.FAST_DOWN ->
+                    Color(0.2f, 0.2f, 0.6f, 1f)              // azul apagado
                 else        -> Color(0.3f, 0.3f, 0.3f, 1f)
             }
             shapes.rect(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
@@ -558,6 +649,12 @@ class WallJumperGame : ApplicationAdapter() {
             font.draw(batch, layout, hsX, hsY)
         }
 
+        val coinsText = "Coins: $coinsCollected"
+        layout.setText(font, coinsText)
+        val coinsX = (W - layout.width) / 2f
+        val coinsY = H * 0.33f
+        font.draw(batch, layout, coinsX, coinsY)
+
         val restartText = "Tap to continue"
         layout.setText(font, restartText)
         val restartX = (W - layout.width) / 2f
@@ -567,13 +664,13 @@ class WallJumperGame : ApplicationAdapter() {
         batch.end()
     }
 
+    // ================== DISPOSE ==================
+
     override fun dispose() {
         shapes.dispose()
         batch.dispose()
         font.dispose()
         titleFont.dispose()
-
-        // 🗑️ DISPONER EL FONDO
         background.dispose()
     }
 }
