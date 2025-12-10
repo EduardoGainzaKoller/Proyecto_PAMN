@@ -18,5 +18,5 @@ data class Coin(
     var collected: Boolean = false,
     val type: CoinType = CoinType.WALL,
     val attachedWall: Wall? = null,
-    var skinId: String? = null // TODO: usar este id para elegir una skin/textura concreta
+    var skinId: String? = null
 )
