@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "211238933672",
+    "project_id": "walljumper-6d3fa",
+    "storage_bucket": "walljumper-6d3fa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:211238933672:android:2d8c354b1edb4dc5ebde9d",
+        "android_client_info": {
+          "package_name": "com.ulpgc.walljumper"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFkkLlUFAx_DRmMh70P8GbnU7QE4-qF2c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
