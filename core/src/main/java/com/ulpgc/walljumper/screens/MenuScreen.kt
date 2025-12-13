@@ -64,6 +64,16 @@ class MenuScreen(private val game: WallJumperGame) : GameScreenLogic {
             res.font.draw(res.batch, res.layout, scoreX, scoreY)
         }
 
+        val coinText = "Coins: ${game.totalCoins}"
+
+        res.layout.setText(res.font, coinText)
+
+
+        val coinX = (W - res.layout.width) / 2f
+        val coinY = H * 0.2f
+
+        res.font.draw(res.batch, res.layout, coinX, coinY)
+
         res.batch.end()
     }
 

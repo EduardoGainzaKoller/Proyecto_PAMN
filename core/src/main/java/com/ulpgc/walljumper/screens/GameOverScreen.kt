@@ -15,9 +15,18 @@ class GameOverScreen(
     private val res = game.getSharedResources()
     private val W = game.W
     private val H = game.H
+    private var coinsSaved = false
+
+    init {
+        if (!coinsSaved) {
+            game.addCoins(finalWorld.coinsCollected)
+            coinsSaved = true
+        }
+    }
 
     override fun update(dt: Float) {
         val justPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched()
+
 
         if (justPressed) {
             // Transición de vuelta al menú

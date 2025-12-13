@@ -30,25 +30,25 @@ class PlayingScreen(private val game: WallJumperGame) : GameScreenLogic {
     }
 
     override fun update(dt: Float) {
-        // 1. Capturar input crudo
+
         val rawJustPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) ||
             Gdx.input.justTouched() ||
             (Gdx.input.isTouched && !pressedLastFrame)
         val rawIsHeld = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isTouched
 
-        // 2. Actualizar el GameWorld
+
         val newBestHeight = world.update(dt, rawJustPressed, rawIsHeld, game.highScore)
 
-        // 3. Actualizar el estado global del juego si es necesario
+
         game.updateHighScore(newBestHeight)
 
-        // 4. Manejar transición a Game Over
+
         if (world.currentGameState == GameScreen.GAME_OVER) {
             game.setScreen(GameOverScreen(game, world, initialHighScore))
             return
         }
 
-        // 5. Actualizar el estado de input para el siguiente frame
+
         pressedLastFrame = Gdx.input.isTouched
     }
 

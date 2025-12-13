@@ -12,6 +12,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.Vector3
 import com.ulpgc.walljumper.db.DatabaseService
+import com.ulpgc.walljumper.model.UserData
 import com.ulpgc.walljumper.screens.GameScreenLogic
 import kotlin.math.min
 
@@ -20,7 +21,7 @@ import kotlin.math.min
  * Gestiona los recursos gráficos y las pantallas/estados del juego.
  */
 class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
-    // === Recursos Compartidos ===
+    // Recursos Compartidos
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
     private lateinit var batch: SpriteBatch
@@ -30,22 +31,26 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     private val layout = GlyphLayout()
     private val touchPos = Vector3()
 
-    // === Constantes del Mundo ===
+    val currentUserId = "1";
+
+
     val W = 480f
     val H = 800f
     val wallLeftX = 40f
     val wallRightX = W - 40f
 
-    // === Estado Global ===
+
     var highScore: Float = 0f
         private set
+    var totalCoins: Int = 0
+        private set
 
-    // === Gestor de Pantallas (Estados) ===
+
     private lateinit var currentScreen: GameScreenLogic
 
     override fun create() {
 
-        // Inicialización de recursos gráficos (se ejecuta una sola vez)
+
         cam = OrthographicCamera(W, H).apply { setToOrtho(false, W, H) }
         shapes = ShapeRenderer()
         batch = SpriteBatch()
@@ -59,8 +64,47 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         }
         background = Texture(Gdx.files.internal("background.png"))
 
-        // Inicializar la primera pantalla
+        loadGameData()
+
+
         currentScreen = MenuScreen(this)
+    }
+
+    private fun loadGameData() {
+        Gdx.app.log("DB", "Intentando cargar datos de Firebase para el usuario: $currentUserId")
+
+
+        dbService.fetchUserData(currentUserId) { result ->
+
+
+            result.onSuccess { data ->
+
+                highScore = data.highScore
+                totalCoins = data.totalCoins
+
+                Gdx.app.log("DB", "Datos cargados de Firebase: HS=$highScore, Coins=$totalCoins")
+
+            }
+            result.onFailure { error ->
+
+                Gdx.app.error("DB_ERROR", "Error al cargar datos. Usando valores por defecto.", error)
+            }
+        }
+    }
+
+    fun saveProgress() {
+        Gdx.app.log("DB", "Intentando guardar datos: HS=$highScore, Coins=$totalCoins")
+
+        val dataToSave = UserData(highScore, totalCoins)
+
+        dbService.saveUserData(currentUserId, dataToSave) { result ->
+            result.onSuccess {
+                Gdx.app.log("DB", "Progreso guardado en Firebase exitosamente.")
+            }
+            result.onFailure { error ->
+                Gdx.app.error("DB_ERROR", "Error al guardar progreso: ${error.message}", error)
+            }
+        }
     }
 
     /**
@@ -75,6 +119,19 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     fun updateHighScore(newScore: Float) {
         if (newScore > highScore) {
             highScore = newScore
+            // 🚨 Guardamos el progreso cada vez que se establece un nuevo récord.
+            saveProgress()
+        }
+    }
+
+    /**
+     * Añade monedas al total global y llama a guardar en Firebase.
+     */
+    fun addCoins(amount: Int) {
+        if (amount > 0) {
+            totalCoins += amount
+            saveProgress()
+            Gdx.app.log("GAME", "Monedas añadidas: $amount. Total: $totalCoins")
         }
     }
 
