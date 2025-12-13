@@ -119,7 +119,7 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     fun updateHighScore(newScore: Float) {
         if (newScore > highScore) {
             highScore = newScore
-            // 🚨 Guardamos el progreso cada vez que se establece un nuevo récord.
+
             saveProgress()
         }
     }
@@ -147,7 +147,7 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         currentScreen.draw()
     }
 
-    // Los getters devuelven los recursos compartidos a las pantallas
+
     fun getSharedResources() = SharedResources(cam, shapes, batch, font, titleFont, layout, touchPos, background)
 
     override fun dispose() {

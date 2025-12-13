@@ -9,8 +9,8 @@ import com.ulpgc.walljumper.screens.GameScreenLogic
 
 class GameOverScreen(
     private val game: WallJumperGame,
-    private val finalWorld: GameWorld, // Retenemos el estado final del juego para el dibujo
-    private val initialHighScore: Float // El score que estaba guardado antes de esta run
+    private val finalWorld: GameWorld,
+    private val initialHighScore: Float
 ) : GameScreenLogic {
     private val res = game.getSharedResources()
     private val W = game.W
@@ -29,7 +29,7 @@ class GameOverScreen(
 
 
         if (justPressed) {
-            // Transición de vuelta al menú
+
             game.setScreen(MenuScreen(game))
         }
     }
