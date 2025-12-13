@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.Vector3
+import com.ulpgc.walljumper.db.DatabaseService
 import com.ulpgc.walljumper.screens.GameScreenLogic
 import kotlin.math.min
 
@@ -18,7 +19,7 @@ import kotlin.math.min
  * WallJumperGame actúa como el Controlador Principal.
  * Gestiona los recursos gráficos y las pantallas/estados del juego.
  */
-class WallJumperGame : ApplicationAdapter() {
+class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     // === Recursos Compartidos ===
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
@@ -43,6 +44,7 @@ class WallJumperGame : ApplicationAdapter() {
     private lateinit var currentScreen: GameScreenLogic
 
     override fun create() {
+
         // Inicialización de recursos gráficos (se ejecuta una sola vez)
         cam = OrthographicCamera(W, H).apply { setToOrtho(false, W, H) }
         shapes = ShapeRenderer()
