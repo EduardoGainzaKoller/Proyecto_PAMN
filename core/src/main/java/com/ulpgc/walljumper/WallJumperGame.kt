@@ -12,15 +12,14 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.Vector3
 import com.ulpgc.walljumper.db.DatabaseService
+import com.ulpgc.walljumper.db.AuthService
 import com.ulpgc.walljumper.model.UserData
 import com.ulpgc.walljumper.screens.GameScreenLogic
 import kotlin.math.min
 
-/**
- * WallJumperGame actúa como el Controlador Principal.
- * Gestiona los recursos gráficos y las pantallas/estados del juego.
- */
-class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
+
+
+class WallJumperGame(val dbService: DatabaseService, val authService: AuthService) : ApplicationAdapter() {
     // Recursos Compartidos
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
@@ -31,8 +30,9 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     private val layout = GlyphLayout()
     private val touchPos = Vector3()
 
-    val currentUserId = "1";
 
+    var currentUserId: String? = null
+        private set
 
     val W = 480f
     val H = 800f
@@ -49,8 +49,6 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
     private lateinit var currentScreen: GameScreenLogic
 
     override fun create() {
-
-
         cam = OrthographicCamera(W, H).apply { setToOrtho(false, W, H) }
         shapes = ShapeRenderer()
         batch = SpriteBatch()
@@ -64,40 +62,67 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         }
         background = Texture(Gdx.files.internal("background.png"))
 
-        loadGameData()
 
+        handleAuthStatus()
 
         currentScreen = MenuScreen(this)
     }
 
+
+    private fun handleAuthStatus() {
+        val userId = authService.getCurrentUserId()
+        if (userId != null) {
+            Gdx.app.log("AUTH", "Usuario previamente logueado: $userId")
+            this.currentUserId = userId
+            loadGameData()
+        } else {
+            Gdx.app.log("AUTH", "Ningún usuario logueado al inicio. Inicializando con 0.")
+
+            highScore = 0f
+            totalCoins = 0
+        }
+    }
+
+
+    fun onUserLoggedIn(newUserId: String) {
+        this.currentUserId = newUserId
+        Gdx.app.log("AUTH", "Usuario ha iniciado sesión: $newUserId. Cargando datos...")
+        loadGameData()
+    }
+
     private fun loadGameData() {
-        Gdx.app.log("DB", "Intentando cargar datos de Firebase para el usuario: $currentUserId")
+        val id = currentUserId
+        if (id == null) {
+            Gdx.app.error("DB", "No se puede cargar datos: currentUserId es null.")
+            return
+        }
 
+        Gdx.app.log("DB", "Intentando cargar datos de Firebase para el usuario: $id")
 
-        dbService.fetchUserData(currentUserId) { result ->
-
-
+        dbService.fetchUserData(id) { result ->
             result.onSuccess { data ->
-
                 highScore = data.highScore
                 totalCoins = data.totalCoins
-
                 Gdx.app.log("DB", "Datos cargados de Firebase: HS=$highScore, Coins=$totalCoins")
-
             }
             result.onFailure { error ->
-
                 Gdx.app.error("DB_ERROR", "Error al cargar datos. Usando valores por defecto.", error)
             }
         }
     }
 
     fun saveProgress() {
-        Gdx.app.log("DB", "Intentando guardar datos: HS=$highScore, Coins=$totalCoins")
+        val id = currentUserId
+        if (id == null) {
+            Gdx.app.error("DB", "No se puede guardar progreso: currentUserId es null.")
+            return
+        }
+
+        Gdx.app.log("DB", "Intentando guardar datos para $id: HS=$highScore, Coins=$totalCoins")
 
         val dataToSave = UserData(highScore, totalCoins)
 
-        dbService.saveUserData(currentUserId, dataToSave) { result ->
+        dbService.saveUserData(id, dataToSave) { result ->
             result.onSuccess {
                 Gdx.app.log("DB", "Progreso guardado en Firebase exitosamente.")
             }
@@ -107,9 +132,7 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         }
     }
 
-    /**
-     * Maneja la transición entre pantallas, liberando recursos si es necesario.
-     */
+
     fun setScreen(newScreen: GameScreenLogic) {
         currentScreen.dispose()
         currentScreen = newScreen
@@ -120,22 +143,24 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         if (newScore > highScore) {
             highScore = newScore
 
-            saveProgress()
+            if (currentUserId != null) {
+                saveProgress()
+            }
         }
     }
 
-    /**
-     * Añade monedas al total global y llama a guardar en Firebase.
-     */
+
     fun addCoins(amount: Int) {
         if (amount > 0) {
             totalCoins += amount
-            saveProgress()
-            Gdx.app.log("GAME", "Monedas añadidas: $amount. Total: $totalCoins")
+            if (currentUserId != null) {
+                saveProgress()
+                Gdx.app.log("GAME", "Monedas añadidas: $amount. Total: $totalCoins")
+            }
         }
     }
 
-    // El loop principal simplemente delega en la pantalla actual
+
     override fun render() {
         val dt = min(1f / 60f, Gdx.graphics.deltaTime)
 
@@ -159,6 +184,7 @@ class WallJumperGame(val dbService: DatabaseService) : ApplicationAdapter() {
         currentScreen.dispose()
     }
 }
+
 
 data class SharedResources(
     val cam: OrthographicCamera,

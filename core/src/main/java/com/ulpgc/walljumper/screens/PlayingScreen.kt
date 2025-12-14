@@ -25,7 +25,7 @@ class PlayingScreen(private val game: WallJumperGame) : GameScreenLogic {
     private var pressedLastFrame = false
 
     init {
-        // Al crearse la pantalla, inicializamos la partida
+
         world.initRun()
     }
 

@@ -19,7 +19,6 @@ class MenuScreen(private val game: WallJumperGame) : GameScreenLogic {
             res.cam.unproject(res.touchPos)
 
             if (playButtonRect.contains(res.touchPos.x, res.touchPos.y)) {
-                // Transición a la pantalla de juego
                 game.setScreen(PlayingScreen(game))
             }
         }
@@ -29,7 +28,7 @@ class MenuScreen(private val game: WallJumperGame) : GameScreenLogic {
         res.shapes.projectionMatrix = res.cam.combined
         res.batch.projectionMatrix = res.cam.combined
 
-        // --- Dibujo de Botón ---
+
         res.shapes.begin(ShapeRenderer.ShapeType.Filled)
         res.shapes.color = Color(0.2f, 0.6f, 0.9f, 1f)
         res.shapes.rect(playButtonRect.x, playButtonRect.y, playButtonRect.width, playButtonRect.height)

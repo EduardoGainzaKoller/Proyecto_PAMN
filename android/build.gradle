@@ -69,6 +69,7 @@ dependencies {
   implementation 'com.google.firebase:firebase-analytics'
   implementation 'com.google.firebase:firebase-firestore'
   implementation 'com.google.firebase:firebase-auth'
+  implementation "androidx.appcompat:appcompat:1.6.1"
 
   natives "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-arm64-v8a"
   natives "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-armeabi-v7a"

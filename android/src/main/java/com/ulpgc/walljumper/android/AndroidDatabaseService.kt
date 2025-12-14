@@ -5,10 +5,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.ulpgc.walljumper.db.DatabaseService
 import com.ulpgc.walljumper.model.UserData
 
-/**
- * Implementación de DatabaseService que utiliza Firebase Firestore.
- * Las operaciones se realizan de forma asíncrona.
- */
+
 class AndroidDatabaseService : DatabaseService {
 
     private val db = FirebaseFirestore.getInstance()

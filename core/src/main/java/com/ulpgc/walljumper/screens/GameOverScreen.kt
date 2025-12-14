@@ -39,7 +39,7 @@ class GameOverScreen(
         val renderer = GameRenderer(finalWorld, res, true)
         renderer.draw()
 
-        // --- Dibujo de Textos de Game Over ---
+
         res.batch.projectionMatrix = res.cam.combined
         res.batch.begin()
 
@@ -49,7 +49,7 @@ class GameOverScreen(
         val goY = H * 0.65f
         res.titleFont.color = Color.RED
         res.titleFont.draw(res.batch, res.layout, goX, goY)
-        res.titleFont.color = Color.WHITE // Restaurar color para otros textos
+        res.titleFont.color = Color.WHITE
 
         val scoreText = "Score: ${finalWorld.bestHeight.toInt()}"
         res.layout.setText(res.font, scoreText)
@@ -57,7 +57,7 @@ class GameOverScreen(
         val scoreY = H * 0.5f
         res.font.draw(res.batch, res.layout, scoreX, scoreY)
 
-        // Usamos el high score actualizado por WallJumperGame
+
         val highScoreText = "Best: ${game.highScore.toInt()}"
         res.layout.setText(res.font, highScoreText)
         val hsX = (W - res.layout.width) / 2f

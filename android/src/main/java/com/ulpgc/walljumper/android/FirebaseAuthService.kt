@@ -1,6 +1,8 @@
 package com.ulpgc.walljumper.android
 
-import com.badlogic.gdx.Gdx
+import android.util.Log
+
+
 import com.google.firebase.auth.FirebaseAuth
 import com.ulpgc.walljumper.db.AuthService
 import com.ulpgc.walljumper.db.AuthResult
@@ -21,13 +23,13 @@ class FirebaseAuthService : AuthService {
                 if (task.isSuccessful) {
                     val userId = task.result.user?.uid
                     if (userId != null) {
-                        Gdx.app.log(TAG, "Registro exitoso para: $userId")
+                        Log.i(TAG, "Registro exitoso para: $userId")
                         callback(AuthResult.Success(userId))
                     } else {
                         callback(AuthResult.Error("Registro exitoso, pero UID no encontrado."))
                     }
                 } else {
-                    Gdx.app.error(TAG, "Fallo en el registro: ${task.exception?.message}", task.exception)
+                    Log.e(TAG, "Fallo en el registro: ${task.exception?.message}", task.exception)
                     callback(AuthResult.Error(task.exception?.message ?: "Error desconocido al registrar."))
                 }
             }
@@ -40,13 +42,13 @@ class FirebaseAuthService : AuthService {
                 if (task.isSuccessful) {
                     val userId = task.result.user?.uid
                     if (userId != null) {
-                        Gdx.app.log(TAG, "Inicio de sesión exitoso para: $userId")
+                        Log.i(TAG, "Inicio de sesión exitoso para: $userId")
                         callback(AuthResult.Success(userId))
                     } else {
                         callback(AuthResult.Error("Inicio de sesión exitoso, pero UID no encontrado."))
                     }
                 } else {
-                    Gdx.app.error(TAG, "Fallo en inicio de sesión: ${task.exception?.message}", task.exception)
+                    Log.e(TAG, "Fallo en inicio de sesión: ${task.exception?.message}", task.exception)
                     callback(AuthResult.Error(task.exception?.message ?: "Credenciales inválidas."))
                 }
             }
@@ -54,6 +56,6 @@ class FirebaseAuthService : AuthService {
 
     override fun logout() {
         auth.signOut()
-        Gdx.app.log(TAG, "Sesión cerrada.")
+        Log.i(TAG, "Sesión cerrada.")
     }
 }
