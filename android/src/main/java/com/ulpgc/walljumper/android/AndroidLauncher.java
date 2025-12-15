@@ -3,6 +3,7 @@ package com.ulpgc.walljumper.android;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
@@ -35,6 +36,8 @@ public class AndroidLauncher extends AndroidApplication {
 
             startLoginActivity();
         } else {
+            String userID = authService.getCurrentUserId();
+            Log.i("Launcher", "ID: "+userID);
 
             startGame();
         }
@@ -54,7 +57,6 @@ public class AndroidLauncher extends AndroidApplication {
 
     private void startLoginActivity() {
         Intent intent = new Intent(this, LoginActivity.class);
-        // Esperamos un resultado de vuelta
         startActivityForResult(intent, RC_LOGIN);
     }
 
