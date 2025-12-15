@@ -1,57 +1,64 @@
 package com.ulpgc.walljumper.renders
 
-import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.Color
+import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.ulpgc.walljumper.GameWorld
 import com.ulpgc.walljumper.SharedResources
 import com.ulpgc.walljumper.Wall
 import com.ulpgc.walljumper.WallVerticalEffect
 
-/**
- * GameRenderer se encarga exclusivamente de tomar el estado del GameWorld
- * y dibujarlo, utilizando los recursos compartidos.
- *
- * @param world El modelo de datos (GameWorld) a dibujar.
- * @param res Los recursos gráficos compartidos (cam, shapes, batch, fonts, etc.).
- * @param isGameOver Si es true, dibuja el mundo en tonos apagados (para la pantalla Game Over).
- */
 class GameRenderer(
     private val world: GameWorld,
     private val res: SharedResources,
     private val isGameOver: Boolean = false
 ) {
+    companion object {
+        // Se carga 1 vez aunque GameRenderer se cree cada frame
+        private var playerSkinTex: Texture? = null
+
+        // Dirección visual persistente (solo estética)
+        private var facingRight: Boolean = true
+    }
+
     private val W = res.cam.viewportWidth
     private val H = res.cam.viewportHeight
     private val camY get() = res.cam.position.y - res.cam.viewportHeight / 2f
 
     fun draw() {
+        ensurePlayerSkinLoaded()
+
         res.batch.projectionMatrix = res.cam.combined
         res.shapes.projectionMatrix = res.cam.combined
 
-        // 1. Fondo e HUD (Usando SpriteBatch)
+        // 1) Fondo + HUD
         drawBackgroundAndHUD()
 
-        // 2. Elementos del mundo (Usando ShapeRenderer)
-        // **CORRECCIÓN:** Todos los elementos que usan ShapeRenderer deben ir dentro de un begin/end.
+        // 2) Mundo con shapes
         res.shapes.begin(ShapeRenderer.ShapeType.Filled)
         drawFloor()
         drawWalls()
         drawCoins()
         drawPlayerAndChunks()
-
-        // El dibujo de los pinchos (que usa shapes.triangle) se mueve aquí.
         drawSpikes()
-
         res.shapes.end()
+
+        // 3) Skin encima del cuadrado (solo estética)
+        drawPlayerSkin()
+    }
+
+    private fun ensurePlayerSkinLoaded() {
+        if (playerSkinTex != null) return
+        // Debe existir en android/assets/skin1.png
+        playerSkinTex = Texture("skin1.png").apply {
+            setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
+        }
     }
 
     private fun drawBackgroundAndHUD() {
         res.batch.begin()
-        // Fondo
         res.batch.draw(res.background, 0f, camY, W, H)
 
-        // HUD (solo si no es Game Over)
         if (!isGameOver) {
             val heightText = "Height: ${world.currentHeight.toInt()}"
             res.layout.setText(res.font, heightText)
@@ -66,7 +73,6 @@ class GameRenderer(
 
     private fun drawFloor() {
         if (!world.floorVisible) return
-
         res.shapes.color = if (isGameOver) Color(0.3f, 0.3f, 0.3f, 1f) else Color.WHITE
         res.shapes.rect(world.floorRect.x, world.floorRect.y, world.floorRect.width, world.floorRect.height)
     }
@@ -79,8 +85,8 @@ class GameRenderer(
     }
 
     private fun getWallColor(w: Wall): Color {
-        if (isGameOver) {
-            return when {
+        return if (isGameOver) {
+            when {
                 w.isBounce  -> Color(1f, 0.6f, 0.8f, 1f)
                 w.hasSpikes -> Color(0.5f, 0.5f, 0.5f, 1f)
                 w.verticalEffect == WallVerticalEffect.LIFT_UP -> Color(0.6f, 0.2f, 0.2f, 1f)
@@ -88,7 +94,7 @@ class GameRenderer(
                 else        -> Color(0.3f, 0.3f, 0.3f, 1f)
             }
         } else {
-            return when {
+            when {
                 w.isBounce  -> Color.PINK
                 w.hasSpikes -> Color.ORANGE
                 w.verticalEffect == WallVerticalEffect.LIFT_UP -> Color.RED
@@ -110,7 +116,12 @@ class GameRenderer(
         res.shapes.color = if (isGameOver) Color(0.5f, 0.2f, 0.2f, 1f) else Color.RED
 
         if (!world.player.isDead() || !world.deathBySpikes) {
-            res.shapes.rect(world.player.rect.x, world.player.rect.y, world.player.rect.width, world.player.rect.height)
+            res.shapes.rect(
+                world.player.rect.x,
+                world.player.rect.y,
+                world.player.rect.width,
+                world.player.rect.height
+            )
         }
         if (world.deathBySpikes) {
             world.chunks.forEach { c ->
@@ -120,14 +131,40 @@ class GameRenderer(
     }
 
     private fun drawSpikes() {
-        // Los pinchos deben ser dibujados DENTRO de un bloque shapes.begin/end.
-        // Como draw() ya llamó a begin(FILLED), simplemente los dibujamos.
-
         val dangerousColor = if (isGameOver) Color(0.5f, 0.5f, 0.5f, 1f) else Color.ORANGE
         val hiddenColor = if (isGameOver) Color(0.4f, 0.3f, 0.3f, 1f) else Color(0.7f, 0.4f, 0.2f, 1f)
 
         world.spikes.forEach { spike ->
             spike.draw(res.shapes, dangerousColor, hiddenColor)
         }
+    }
+
+    // ✅ SOLUCIÓN: la skin se voltea para que "mire" al lado correcto
+    private fun drawPlayerSkin() {
+        if (world.deathBySpikes) return
+        if (world.player.isDead()) return
+
+        val tex = playerSkinTex ?: return
+
+        val x = world.player.rect.x
+        val y = world.player.rect.y
+        val w = world.player.rect.width
+        val h = world.player.rect.height
+
+        // Actualizamos la dirección visual cuando estamos en pared:
+        // Si estás en pared izquierda, normalmente saltas hacia la derecha => facingRight = true
+        if (world.player.isOnWall()) {
+            facingRight = world.player.onWallLeft
+        }
+
+        res.batch.begin()
+        if (facingRight) {
+            // normal
+            res.batch.draw(tex, x, y, w, h)
+        } else {
+            // espejo horizontal: mismo sitio, pero ancho negativo
+            res.batch.draw(tex, x + w, y, -w, h)
+        }
+        res.batch.end()
     }
 }
