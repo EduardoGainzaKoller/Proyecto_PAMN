@@ -58,11 +58,38 @@ class LoginActivity : Activity() {
         }
 
 
+        if (!isLogin) {
+            if (!isPasswordValid(pass)) {
+                Toast.makeText(
+                    this,
+                    "La contraseña debe tener al menos 5 caracteres, incluyendo 1 mayúscula y 1 número.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
+        }
+
         if (isLogin) {
             authService.login(email, pass, ::handleAuthResult)
         } else {
             authService.register(email, pass, ::handleAuthResult)
         }
+    }
+
+
+    private fun isPasswordValid(password: String): Boolean {
+
+        if (password.length < 5) return false
+
+
+        val hasUpperCase = password.any { it.isUpperCase() }
+        if (!hasUpperCase) return false
+
+
+        val hasDigit = password.any { it.isDigit() }
+        if (!hasDigit) return false
+
+        return true
     }
 
     private fun handleAuthResult(result: AuthResult) {
