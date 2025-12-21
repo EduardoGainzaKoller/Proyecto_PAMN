@@ -11,16 +11,16 @@ class Player(
 
     val rect = Rectangle(startX - 16f, startY, 24f, 24f)
 
-    // ===== Tuning de física =====
+
     private val gravity = 900f
-    var slideSpeed = 120f              // base para paredes normales
+    var slideSpeed = 120f
     private val jumpVX = 420f
 
-    // ❗ NUEVO: tuning para paredes especiales
-    private val fastSlideMultiplier = 1.8f   // azules -> caes más rápido
-    private val climbSpeed = 140f           // rojas -> subes a esta velocidad
 
-    // Salto variable por hold...
+    private val fastSlideMultiplier = 1.8f
+    private val climbSpeed = 140f
+
+
     private val jumpVYMin = 420f
     private val jumpVYMax = 620f
     private val holdDurationMax = 0.18f
@@ -47,7 +47,7 @@ class Player(
     private var wasJumpHeld = false
     private var holdTimer = 0f
 
-    // ❗ NUEVO: pared en la que estás apoyado
+
     private var currentWall: Wall? = null
 
     fun update(dt: Float) {
@@ -142,7 +142,7 @@ class Player(
                 canDoubleJump = true
                 holdTimer = 0f
 
-                // ❗ Guardamos la pared actual
+
                 currentWall = w
                 return
             }

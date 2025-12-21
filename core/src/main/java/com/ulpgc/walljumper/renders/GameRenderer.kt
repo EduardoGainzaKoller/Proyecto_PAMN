@@ -35,25 +35,23 @@ class GameRenderer(
         res.batch.projectionMatrix = res.cam.combined
         res.shapes.projectionMatrix = res.cam.combined
 
-        // 1) Fondo (lineal y continuo)
+
         drawDynamicBackgroundLinear()
 
-        // 2) Mundo (shapes)
+
         res.shapes.begin(ShapeRenderer.ShapeType.Filled)
         drawFloor()
         drawWalls()
         drawCoins()
-        drawPlayerAndChunks()   // ✅ aquí vuelve la muerte con chunks
+        drawPlayerAndChunks()
         drawSpikes()
         res.shapes.end()
 
-        // 3) Skin por encima (batch) — pero NO durante chunks por pinchos
+
         drawPlayerSkin()
     }
 
-    // =========================
-    // 🌄 FONDO DINÁMICO LINEAL
-    // =========================
+
     private fun drawDynamicBackgroundLinear() {
         val t1 = fondo1!!
         val t2 = fondo2!!
@@ -76,16 +74,16 @@ class GameRenderer(
 
         res.batch.begin()
 
-        // Fondo1 (una vez)
+
         drawIfVisible(t1, yFondo1, h1, viewBottom, viewTop)
 
-        // Fondo2 (4 veces)
+
         for (i in 0 until 4) {
             val y = yFondo2Start + i * h2
             drawIfVisible(t2, y, h2, viewBottom, viewTop)
         }
 
-        // Fondo3 (infinito)
+
         if (yFondo3Start < viewTop) {
             var y = yFondo3Start
 
@@ -128,9 +126,7 @@ class GameRenderer(
         }
     }
 
-    // =========================
-    // RESTO DEL RENDER
-    // =========================
+
     private fun drawFloor() {
         if (!world.floorVisible) return
         res.shapes.color = if (isGameOver) Color(0.3f, 0.3f, 0.3f, 1f) else Color.WHITE
@@ -150,7 +146,7 @@ class GameRenderer(
             w.hasSpikes -> Color.ORANGE
             w.verticalEffect == WallVerticalEffect.LIFT_UP -> Color.RED
             w.verticalEffect == WallVerticalEffect.FAST_DOWN -> Color.BLUE
-            else -> Color.GREEN  // 👈 normales verdes (como pediste)
+            else -> Color.GREEN
         }
 
     private fun drawCoins() {
@@ -161,11 +157,11 @@ class GameRenderer(
         }
     }
 
-    // ✅ VUELVE la animación de muerte (chunks) como antes
+
     private fun drawPlayerAndChunks() {
         res.shapes.color = if (isGameOver) Color(0.5f, 0.2f, 0.2f, 1f) else Color.RED
 
-        // Si NO está muerto por pinchos, dibuja el rect del jugador (aunque esté vivo o muerto normal)
+
         if (!world.player.isDead() || !world.deathBySpikes) {
             res.shapes.rect(
                 world.player.rect.x,
@@ -175,7 +171,7 @@ class GameRenderer(
             )
         }
 
-        // Si murió por pinchos, dibuja chunks
+
         if (world.deathBySpikes) {
             world.chunks.forEach { c ->
                 res.shapes.rect(c.x, c.y, c.w, c.h)
@@ -192,18 +188,16 @@ class GameRenderer(
         }
     }
 
-    // =========================
-    // ✅ SKIN DEL JUGADOR
-    // =========================
+
     private fun drawPlayerSkin() {
-        // Si hay animación de chunks, NO dibujamos la skin
+
         if (world.deathBySpikes) return
         if (world.player.isDead()) return
 
         val tex = playerSkinTex ?: return
 
         if (world.player.isOnWall()) {
-            // Si lo quieres al revés: facingRight = !world.player.onWallLeft
+
             facingRight = world.player.onWallLeft
         }
 

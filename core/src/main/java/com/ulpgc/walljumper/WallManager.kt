@@ -14,28 +14,27 @@ class WallManager(
     private val jumpVX: Float = 420f,
     private val jumpVY: Float = 620f,
     private val gravity: Float = 900f,
-    // Callback opcional (lo usas para monedas)
     private val onWallSpawned: ((Wall) -> Unit)? = null,
-    // --- tuning ---
+
     private val minRise: Float = 80f,
     private val sameSideChance: Float = 0.25f,
-    private val spikeProbability: Float = 0.25f,   // probabilidad de pinchos
-    private val bounceProbability: Float = 0.10f,  // probabilidad de pared rosa
-    // Probabilidades de paredes especiales
-    private val liftWallProbability: Float = 0.10f,      // rojas (suben)
-    private val fastWallProbability: Float = 0.12f       // azules (bajan más rápido)
+    private val spikeProbability: Float = 0.25f,
+    private val bounceProbability: Float = 0.10f,
+
+    private val liftWallProbability: Float = 0.10f,
+    private val fastWallProbability: Float = 0.12f
 ) {
     val walls = mutableListOf<Wall>()
 
     private var lastSide = WallSide.RIGHT
     private var sameSideCount = 0
-    private var lastContactY = 0f  // Altura donde el jugador TOCA la pared
+    private var lastContactY = 0f
 
-    // Alturas máximas posibles según tu Player
-    private val maxSingleJumpRise = (jumpVY * jumpVY) / (2f * gravity)   // ≈ 213
-    private val maxDoubleJumpRise = maxSingleJumpRise * 2f               // ≈ 426
 
-    // Altura cuando saltas lateralmente de una pared a otra
+    private val maxSingleJumpRise = (jumpVY * jumpVY) / (2f * gravity)
+    private val maxDoubleJumpRise = maxSingleJumpRise * 2f
+
+
     private val horizontalDistance = rightX - (leftX - wallWidth)
     private val timeToReachOtherSide = horizontalDistance / jumpVX
     private val maxLateralJumpRise = (jumpVY * timeToReachOtherSide) -
@@ -48,7 +47,7 @@ class WallManager(
         lastContactY = 0f
     }
 
-    /** Primera pared desde el suelo: siempre normal. */
+
     fun spawnFirstFromGround(
         playerRect: Rectangle,
         groundTop: Float,
@@ -101,13 +100,13 @@ class WallManager(
         }
     }
 
-    /** Genera una nueva pared hacia arriba. */
+
     private fun spawnNext() {
         val newSide: WallSide
         val rise: Float
 
         if (sameSideCount >= 1) {
-            // Forzamos cambio de lado
+
             newSide = oppositeOf(lastSide)
             sameSideCount = 0
             val minLateralRise = maxLateralJumpRise * 0.70f
@@ -115,13 +114,13 @@ class WallManager(
         } else {
             val repeatSameSide = Random.nextFloat() < sameSideChance
             if (repeatSameSide) {
-                // Misma pared -> doble salto
+
                 newSide = lastSide
                 sameSideCount++
                 val minDoubleRise = maxDoubleJumpRise * 0.60f
                 rise = randomBetween(minDoubleRise, maxDoubleJumpRise * 0.85f)
             } else {
-                // Otro lado -> salto normal lateral
+
                 newSide = oppositeOf(lastSide)
                 sameSideCount = 0
                 val minLateralRise = maxLateralJumpRise * 0.70f
@@ -129,7 +128,7 @@ class WallManager(
             }
         }
 
-        // Altura de contacto "ideal" respecto a la última
+
         val desiredContactY = lastContactY + rise
 
         val x = if (newSide == WallSide.LEFT) (leftX - wallWidth) else rightX
@@ -140,7 +139,7 @@ class WallManager(
         val isBounce = allowBounce && Random.nextFloat() < bounceProbability
         val hasSpikes = allowSpikes && !isBounce && Random.nextFloat() < spikeProbability
 
-        // Sólo paredes sin pinchos y sin rebote pueden ser especiales
+
         val verticalEffect = if (!isBounce && !hasSpikes && walls.size >= 5) {
             val r = Random.nextFloat()
             when {
@@ -152,19 +151,19 @@ class WallManager(
             WallVerticalEffect.NORMAL
         }
 
-        // 🔴🔵 Paredes especiales -> exactamente el DOBLE de altura
+
         val height = if (verticalEffect == WallVerticalEffect.NORMAL) {
             segmentHeight
         } else {
             segmentHeight * 2f
         }
 
-        // Posición inicial suponiendo que el punto de contacto está al 70% de la altura
+
         var rectY = desiredContactY - height * 0.7f
         val rect = Rectangle(x, rectY, wallWidth, height)
 
-        // 💡 Asegurar que no se pegue ni solape con paredes del MISMO lado
-        val minGap = 18f // distancia mínima entre tope de pared antigua y base de la nueva
+
+        val minGap = 18f
         val sameSideWalls = walls.filter { it.side == newSide }
 
         var requiredDelta = 0f
@@ -182,7 +181,7 @@ class WallManager(
             rect.y = rectY
         }
 
-        // Recalculamos ahora la altura de contacto real basada en la posición final
+
         val newContactY = rect.y + height * 0.7f
 
         val wall = Wall(

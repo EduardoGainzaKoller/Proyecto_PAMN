@@ -21,7 +21,7 @@ class WallJumperGame(
     val authService: AuthService
 ) : ApplicationAdapter() {
 
-    // ===== Recursos compartidos =====
+
     private lateinit var cam: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
     private lateinit var batch: SpriteBatch
@@ -30,7 +30,7 @@ class WallJumperGame(
     private val layout = GlyphLayout()
     private val touchPos = Vector3()
 
-    // ===== Estado del usuario =====
+
     var currentUserId: String? = null
         private set
 
@@ -65,7 +65,7 @@ class WallJumperGame(
         currentScreen = MenuScreen(this)
     }
 
-    // ===== Autenticación =====
+
     private fun handleAuthStatus() {
         val userId = authService.getCurrentUserId()
         if (userId != null) {
@@ -109,7 +109,7 @@ class WallJumperGame(
         }
     }
 
-    // ===== Gestión de pantallas =====
+
     fun setScreen(newScreen: GameScreenLogic) {
         currentScreen.dispose()
         currentScreen = newScreen
@@ -128,7 +128,7 @@ class WallJumperGame(
         if (currentUserId != null) saveProgress()
     }
 
-    // ===== Loop principal =====
+
     override fun render() {
         val dt = min(1f / 60f, Gdx.graphics.deltaTime)
 
@@ -141,7 +141,7 @@ class WallJumperGame(
         currentScreen.draw()
     }
 
-    // ===== Recursos compartidos =====
+
     fun getSharedResources() =
         SharedResources(
             cam = cam,
@@ -162,7 +162,7 @@ class WallJumperGame(
     }
 }
 
-// ===== SharedResources SIN fondo =====
+
 data class SharedResources(
     val cam: OrthographicCamera,
     val shapes: ShapeRenderer,

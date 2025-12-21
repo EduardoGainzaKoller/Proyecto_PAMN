@@ -14,7 +14,7 @@ class GameWorld(
     private val wallLeftX: Float,
     private val wallRightX: Float
 ) {
-    // --- Entidades y Managers ---
+
     lateinit var player: Player
         private set
     lateinit var wallManager: WallManager
@@ -24,18 +24,18 @@ class GameWorld(
     val spikes = mutableListOf<SpikeTrap>()
     val chunks = mutableListOf<PlayerChunk>()
 
-    // --- Tuning y Constantes ---
+
     private val coinSize = 18f
     private val coinSpawnChance = 0.18f
     private val deathDelay = 1f
 
-    // Suelo
+
     val floorRect = Rectangle(0f, 0f, W, 18f)
     var floorVisible = true
         private set
     private val floorTop get() = floorRect.y + floorRect.height
 
-    // --- Estado del Juego ---
+
     var currentHeight = 0f
         private set
     var bestHeight = 0f
@@ -46,12 +46,12 @@ class GameWorld(
         private set
     private var initialJumpToRight = true
 
-    // Game over con delay
+
     private var deathTimer = 0f
     var deathBySpikes = false
         private set
 
-    // Control de input
+
     private var playInputLock = 0f
     private val anchorRatio = 0.42f
     private val anchorY get() = H * anchorRatio
@@ -60,7 +60,7 @@ class GameWorld(
     var currentGameState = GameScreen.MENU
         private set
 
-    // “Trocitos” del personaje
+
     data class PlayerChunk(
         var x: Float,
         var y: Float,
@@ -70,7 +70,7 @@ class GameWorld(
         var vy: Float
     )
 
-    // ================== INICIALIZACIÓN / RESET ==================
+
 
     fun initRun() {
         started = false
@@ -94,17 +94,17 @@ class GameWorld(
         )
 
         wallManager.resetEmpty()
-        initialJumpToRight = Random.nextBoolean() // Podría ser aleatorio
+        initialJumpToRight = Random.nextBoolean()
         wallManager.spawnFirstFromGround(player.rect, floorTop, initialJumpToRight)
         wallManager.ensureAhead()
 
         spikes.clear()
         syncSpikesWithWalls()
-        playInputLock = 0.25f // Tiempo de gracia inicial
+        playInputLock = 0.25f
         currentGameState = GameScreen.PLAYING
     }
 
-    // ================== UPDATE ==================
+
 
     fun update(
         dt: Float,
@@ -112,7 +112,7 @@ class GameWorld(
         rawIsHeld: Boolean,
         highScore: Float
     ): Float {
-        // Reducir bloqueo de input
+
         if (playInputLock > 0f) {
             playInputLock -= dt
             if (playInputLock < 0f) playInputLock = 0f
@@ -139,7 +139,7 @@ class GameWorld(
             started = true
         }
 
-        // Actualizar entidades
+
         player.update(dt)
         spikes.forEach { it.update(dt) }
         if (deathBySpikes && player.isDead()) updateChunks(dt)
@@ -148,30 +148,29 @@ class GameWorld(
             handleMovementAndCollisions(justPressed)
         }
 
-        // Scroll de cámara / mundo
+
         applyScroll(dt)
 
-        // Colisiones letales
+
         if (!player.isDead()) {
             checkSpikeCollisions()
         }
 
-        // Colisión con monedas
+
         if (!player.isDead()) {
             checkCoinCollisions()
         }
 
-        // Caída fuera de la pantalla
+
         if (!player.isDead() && player.rect.y + player.rect.height < 0f) {
             killPlayer(bySpikes = false)
         }
 
-        // Cuenta atrás hasta GAME OVER
+
         if (player.isDead()) {
             deathTimer -= dt
             if (deathTimer <= 0f) {
                 currentGameState = GameScreen.GAME_OVER
-                // Retornamos la mejor altura para que WallJumperGame actualice el highScore.
                 this.bestHeight = min(bestHeight, highScore)
             }
         }
@@ -180,28 +179,27 @@ class GameWorld(
     private fun handleMovementAndCollisions(justPressed: Boolean) {
         player.detachFromWallIfNotOverlapping(wallManager.walls)
 
-        // Aterrizaje en el suelo
+
         if (floorVisible && player.verticalSpeed() <= 0f && player.rect.y <= floorTop) {
             player.landOnGround(floorTop)
         }
 
         player.tryStickToWall(wallManager.walls)
 
-        // Rebote en paredes rosas (Bounce Walls)
+
         for (w in wallManager.walls) {
             if (!w.isBounce) continue
             if (Intersector.overlaps(player.rect, w.rect)) {
                 val dir = if (w.side == WallSide.LEFT) +1f else -1f
-                // Posicionar al jugador justo fuera de la pared para evitar re-colisión inmediata
                 val newX = if (w.side == WallSide.LEFT) w.rect.x + w.rect.width + 1f
                 else w.rect.x - player.rect.width - 1f
                 player.rect.x = newX
                 player.bounce(dir)
-                break // Solo puede rebotar en una pared a la vez
+                break
             }
         }
 
-        // Manejo del salto
+
         if (justPressed) {
             when {
                 player.isOnWall() -> player.jumpFromWall()
@@ -227,7 +225,7 @@ class GameWorld(
             if (floorRect.y + floorRect.height < -200f) floorVisible = false
             player.rect.y -= dy
 
-            // Scroll y limpieza de monedas
+
             coins.forEach { it.rect.y -= dy }
             coins.removeAll { it.rect.y + it.rect.height < -200f || it.collected }
 
@@ -252,7 +250,7 @@ class GameWorld(
             if (!coin.collected && Intersector.overlaps(player.rect, coin.rect)) {
                 coin.collected = true
                 coinsCollected += 1
-                iterator.remove() // removemos inmediatamente tras la colisión
+                iterator.remove()
             }
         }
     }
@@ -264,7 +262,7 @@ class GameWorld(
         if (bySpikes) spawnPlayerChunks() else chunks.clear()
     }
 
-    // ================== SPAWN DE ENTIDADES ==================
+
 
     private fun maybeSpawnCoinForWall(wall: Wall) {
         if (wall.rect.y < floorTop + 60f || Random.nextFloat() > coinSpawnChance) return
@@ -297,7 +295,6 @@ class GameWorld(
         }
     }
 
-    // ================== EFECTO TROZOS ==================
 
     private fun spawnPlayerChunks() {
         chunks.clear()
